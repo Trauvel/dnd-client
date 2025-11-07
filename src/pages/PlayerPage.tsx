@@ -1,43 +1,89 @@
 import React, { useState, useEffect } from 'react';
-import { useSocket } from '../store/socketContext';
-import { fetchPlayerMock, type Player } from '../api/player';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { getCharacters, updateCharacter, type Character } from '../api/characters';
 import './PlayerPage.css';
 
 const PlayerPage: React.FC = () => {
-  const { socket, GameState, connect, updatePlayer } = useSocket();
-  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
-  const [playerName, setPlayerName] = useState<string>('');
-  const playerMock = fetchPlayerMock();
-  console.log(playerMock);
-
-  // Моковые данные персонажа для демонстрации
-  const Player: Player = {
-    id: 'player-1',
-    name: 'Арагорн',
-    ...playerMock,
-  };
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [character, setCharacter] = useState<Character | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Устанавливаем мокового персонажа при загрузке
-    setCurrentPlayer(Player);
-  }, []);
+    if (id) {
+      loadCharacter();
+    }
+  }, [id]);
 
-  const handleConnect = () => {
-    if (playerName.trim()) {
-      connect(playerName);
+  const loadCharacter = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const characters = await getCharacters();
+      const found = characters.find((c) => c.id === id);
+      if (found) {
+        setCharacter(found);
+      } else {
+        setError('Персонаж не найден');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Ошибка загрузки персонажа');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const updatePlayerStat = (stat: keyof Player, value: any) => {
-    if (currentPlayer) {
-      const updatedPlayer = {
-        ...currentPlayer,
-        [stat]: value
-      };
-      setCurrentPlayer(updatedPlayer);
+  const updateCharacterStat = async (field: keyof Character, value: any) => {
+    if (!character || !id) return;
 
-      // Отправляем обновление на сервер
-      updatePlayer({ [stat]: value });
+    const updatedCharacter = {
+      ...character,
+      [field]: value,
+    };
+    setCharacter(updatedCharacter);
+  };
+
+  const handleSave = async () => {
+    if (!character || !id) return;
+
+    setIsSaving(true);
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      // Подготавливаем данные для обновления
+      const updateData: any = {
+        characterName: character.characterName,
+        level: character.level,
+        experience: character.experience,
+        hp: character.hp,
+        maxHp: character.maxHp,
+        locationId: character.locationId,
+        strength: character.strength,
+        dexterity: character.dexterity,
+        constitution: character.constitution,
+        intelligence: character.intelligence,
+        wisdom: character.wisdom,
+        charisma: character.charisma,
+        class: character.class,
+        race: character.race,
+        armorClass: character.armorClass,
+        initiative: character.initiative,
+        speed: character.speed,
+        inventory: character.inventory,
+      };
+
+      const updated = await updateCharacter(id, updateData);
+      setCharacter(updated);
+      setSaveMessage('Изменения сохранены');
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Ошибка сохранения персонажа');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -46,26 +92,84 @@ const PlayerPage: React.FC = () => {
     return modifier >= 0 ? `+${modifier}` : `${modifier}`;
   };
 
-  if (!currentPlayer) {
-    return <div className="player-page">Загрузка персонажа...</div>;
+  if (isLoading) {
+    return (
+      <div className="player-page" style={{ padding: '40px', textAlign: 'center' }}>
+        <div>Загрузка персонажа...</div>
+      </div>
+    );
+  }
+
+  if (error && !character) {
+    return (
+      <div className="player-page" style={{ padding: '40px' }}>
+        <div style={{ color: 'red', marginBottom: '20px' }}>{error}</div>
+        <Link to="/characters" style={{ color: '#007bff', textDecoration: 'none' }}>
+          ← Вернуться к списку персонажей
+        </Link>
+      </div>
+    );
+  }
+
+  if (!character) {
+    return (
+      <div className="player-page" style={{ padding: '40px' }}>
+        <div>Персонаж не найден</div>
+        <Link to="/characters" style={{ color: '#007bff', textDecoration: 'none' }}>
+          ← Вернуться к списку персонажей
+        </Link>
+      </div>
+    );
   }
 
   return (
     <div className="player-page">
       <div className="player-header">
-        <h1>Персонаж: {currentPlayer.name}</h1>
-        <div className="connection-section">
-          <input
-            type="text"
-            placeholder="Введите имя персонажа"
-            value={playerName}
-            onChange={(e) => setPlayerName(e.target.value)}
-            className="name-input"
-          />
-          <button onClick={handleConnect} className="connect-btn">
-            Подключиться
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <Link
+              to="/characters"
+              style={{ color: '#007bff', textDecoration: 'none', marginBottom: '10px', display: 'block' }}
+            >
+              ← Вернуться к списку персонажей
+            </Link>
+            <h1>Персонаж: {character.characterName || 'Безымянный'}</h1>
+          </div>
+          <div>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              style={{
+                padding: '10px 20px',
+                background: isSaving ? '#6c757d' : '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                fontSize: '16px',
+                marginRight: '10px',
+              }}
+            >
+              {isSaving ? 'Сохранение...' : 'Сохранить изменения'}
+            </button>
+            {saveMessage && (
+              <span style={{ color: '#28a745', fontSize: '14px' }}>{saveMessage}</span>
+            )}
+          </div>
         </div>
+        {error && (
+          <div
+            style={{
+              color: 'red',
+              marginTop: '10px',
+              padding: '10px',
+              background: '#ffebee',
+              borderRadius: '4px',
+            }}
+          >
+            {error}
+          </div>
+        )}
       </div>
 
       <div className="player-content">
@@ -78,32 +182,32 @@ const PlayerPage: React.FC = () => {
                   <label>Имя:</label>
                   <input
                     type="text"
-                    value={currentPlayer.name}
-                    onChange={(e) => updatePlayerStat('name', e.target.value)}
+                    value={character.characterName || ''}
+                    onChange={(e) => updateCharacterStat('characterName', e.target.value)}
                   />
                 </div>
                 <div className="info-item">
                   <label>Раса:</label>
                   <input
                     type="text"
-                    value={currentPlayer.race || ''}
-                    onChange={(e) => updatePlayerStat('race', e.target.value)}
+                    value={character.race || ''}
+                    onChange={(e) => updateCharacterStat('race', e.target.value)}
                   />
                 </div>
                 <div className="info-item">
                   <label>Класс:</label>
                   <input
                     type="text"
-                    value={currentPlayer.class || ''}
-                    onChange={(e) => updatePlayerStat('class', e.target.value)}
+                    value={character.class || ''}
+                    onChange={(e) => updateCharacterStat('class', e.target.value)}
                   />
                 </div>
                 <div className="info-item">
                   <label>Уровень:</label>
                   <input
                     type="number"
-                    value={currentPlayer.level || 1}
-                    onChange={(e) => updatePlayerStat('level', parseInt(e.target.value))}
+                    value={character.level || 1}
+                    onChange={(e) => updateCharacterStat('level', parseInt(e.target.value) || 1)}
                   />
                 </div>
               </div>
@@ -116,33 +220,41 @@ const PlayerPage: React.FC = () => {
                   <label>HP:</label>
                   <input
                     type="number"
-                    value={currentPlayer.hp || 0}
-                    onChange={(e) => updatePlayerStat('hp', parseInt(e.target.value))}
+                    value={character.hp || 0}
+                    onChange={(e) => updateCharacterStat('hp', parseInt(e.target.value) || 0)}
                   />
-                  <span>/ {currentPlayer.maxHp || 0}</span>
+                  <span>/ {character.maxHp || 0}</span>
+                </div>
+                <div className="stat-item">
+                  <label>Макс. HP:</label>
+                  <input
+                    type="number"
+                    value={character.maxHp || 0}
+                    onChange={(e) => updateCharacterStat('maxHp', parseInt(e.target.value) || 0)}
+                  />
                 </div>
                 <div className="stat-item">
                   <label>КД:</label>
                   <input
                     type="number"
-                    value={currentPlayer.armorClass || 0}
-                    onChange={(e) => updatePlayerStat('armorClass', parseInt(e.target.value))}
+                    value={character.armorClass || 0}
+                    onChange={(e) => updateCharacterStat('armorClass', parseInt(e.target.value) || 0)}
                   />
                 </div>
                 <div className="stat-item">
                   <label>Инициатива:</label>
                   <input
                     type="number"
-                    value={currentPlayer.initiative || 0}
-                    onChange={(e) => updatePlayerStat('initiative', parseInt(e.target.value))}
+                    value={character.initiative || 0}
+                    onChange={(e) => updateCharacterStat('initiative', parseInt(e.target.value) || 0)}
                   />
                 </div>
                 <div className="stat-item">
                   <label>Скорость:</label>
                   <input
                     type="number"
-                    value={currentPlayer.speed || 0}
-                    onChange={(e) => updatePlayerStat('speed', parseInt(e.target.value))}
+                    value={character.speed || 0}
+                    onChange={(e) => updateCharacterStat('speed', parseInt(e.target.value) || 0)}
                   />
                 </div>
               </div>
@@ -157,17 +269,19 @@ const PlayerPage: React.FC = () => {
                   { key: 'constitution', name: 'Телосложение' },
                   { key: 'intelligence', name: 'Интеллект' },
                   { key: 'wisdom', name: 'Мудрость' },
-                  { key: 'charisma', name: 'Харизма' }
+                  { key: 'charisma', name: 'Харизма' },
                 ].map(({ key, name }) => (
                   <div key={key} className="ability-item">
                     <label>{name}:</label>
                     <input
                       type="number"
-                      value={currentPlayer[key as keyof Player] || 10}
-                      onChange={(e) => updatePlayerStat(key as keyof Player, parseInt(e.target.value))}
+                      value={character[key as keyof Character] as number || 10}
+                      onChange={(e) =>
+                        updateCharacterStat(key as keyof Character, parseInt(e.target.value) || 10)
+                      }
                     />
                     <span className="modifier">
-                      {getModifier(currentPlayer[key as keyof Player] as number || 10)}
+                      {getModifier((character[key as keyof Character] as number) || 10)}
                     </span>
                   </div>
                 ))}
@@ -180,8 +294,8 @@ const PlayerPage: React.FC = () => {
                 <label>Опыт:</label>
                 <input
                   type="number"
-                  value={currentPlayer.experience || 0}
-                  onChange={(e) => updatePlayerStat('experience', parseInt(e.target.value))}
+                  value={character.experience || 0}
+                  onChange={(e) => updateCharacterStat('experience', parseInt(e.target.value) || 0)}
                 />
               </div>
             </div>
@@ -189,45 +303,18 @@ const PlayerPage: React.FC = () => {
             <div className="inventory-section">
               <h2>Инвентарь</h2>
               <div className="inventory-list">
-                {currentPlayer.inventory?.map((item, index) => (
-                  <div key={index} className="inventory-item">
-                    {item}
-                  </div>
-                )) || <div>Инвентарь пуст</div>}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="player-sidebar">
-          <div className="connection-status">
-            <h3>Статус подключения</h3>
-            <div className={`status-indicator ${socket ? 'connected' : 'disconnected'}`}>
-              {socket ? 'Подключено' : 'Отключено'}
-            </div>
-          </div>
-
-          {GameState && (
-            <div className="game-state">
-              <h3>Игровое состояние</h3>
-              <div className="state-info">
-                <p>Игроков онлайн: {GameState.public.players.length}</p>
-                <p>Локаций: {GameState.public.locations?.length || 0}</p>
-                {GameState.public.logs && GameState.public.logs.length > 0 && (
-                  <div className="logs-section">
-                    <h4>Последние события:</h4>
-                    <div className="logs-list">
-                      {GameState.public.logs.slice(-5).map((log, index) => (
-                        <div key={index} className="log-item">
-                          {log}
-                        </div>
-                      ))}
+                {character.inventory && character.inventory.length > 0 ? (
+                  character.inventory.map((item, index) => (
+                    <div key={index} className="inventory-item">
+                      {item}
                     </div>
-                  </div>
+                  ))
+                ) : (
+                  <div>Инвентарь пуст</div>
                 )}
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
