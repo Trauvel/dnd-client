@@ -12,7 +12,7 @@ const GamePage: React.FC = () => {
   const { roomCode: urlRoomCode } = useParams<{ roomCode?: string }>();
   const navigate = useNavigate();
   const [view, setView] = useState<GamePageView>('menu');
-  const { GameState, socket, roomCode: currentRoomCode, disconnect } = useSocket();
+  const { roomCode: currentRoomCode, disconnect } = useSocket();
 
   // В комнате по URL — показываем лобби (после перезагрузки остаёмся в игре)
   if (urlRoomCode) {
@@ -44,16 +44,6 @@ const GamePage: React.FC = () => {
 
   const handleRoomRestored = (code: string) => {
     navigate(`/room/${code}`);
-  };
-
-  const move = (locationId: string) => {
-    socket?.emit("playerAction", {
-      action: 'player:move',
-      data: {
-        'playerId': socket?.id,
-        'to': locationId,
-      }
-    });
   };
 
   if (view === 'create') {

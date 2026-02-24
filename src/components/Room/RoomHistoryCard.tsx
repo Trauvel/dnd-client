@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { RoomSnapshot, restoreRoom, deleteRoomSnapshot, getRoomSnapshot } from '../../api/rooms';
+import { restoreRoom, deleteRoomSnapshot, getRoomSnapshot } from '../../api/rooms';
+import type { RoomSnapshot } from '../../api/rooms';
 
 interface RoomHistoryCardProps {
   snapshot: RoomSnapshot;

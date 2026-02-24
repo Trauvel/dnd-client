@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getCharacters, Character } from '../../api/characters';
-
-interface GetCharactersResponse {
-  characters: Character[];
-}
+import { getCharacters } from '../../api/characters';
+import type { Character } from '../../api/characters';
 
 interface CharacterSelectorProps {
   onSelect: (characterId: string | null) => void;
@@ -78,7 +75,7 @@ export const CharacterSelector: React.FC<CharacterSelectorProps> = ({
         )}
         {characters.map((character) => (
           <option key={character.id} value={character.id}>
-            {character.name} (Уровень {character.level}, {character.class || 'Без класса'})
+            {character.characterName || 'Безымянный'} (Уровень {character.level}, {character.class || 'Без класса'})
           </option>
         ))}
       </select>

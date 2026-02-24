@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { login as loginApi, register as registerApi, getProfile, type User } from '../api/auth';
 import { saveToken, getToken, removeToken, saveUserData, getUserData, removeUserData } from '../utils/auth';
 

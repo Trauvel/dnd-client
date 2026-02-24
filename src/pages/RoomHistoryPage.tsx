@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getRoomHistory, RoomSnapshot, isRoomExists, deleteRoomSnapshot } from '../api/rooms';
+import { getRoomHistory, isRoomExists, deleteRoomSnapshot } from '../api/rooms';
+import type { RoomSnapshot } from '../api/rooms';
 import { RoomHistoryCard } from '../components/Room/RoomHistoryCard';
 
 const RoomHistoryPage: React.FC = () => {

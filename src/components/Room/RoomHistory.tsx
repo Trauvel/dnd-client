@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getRoomHistory, restoreRoom, deleteRoomSnapshot, isRoomExists, RoomSnapshot } from '../../api/rooms';
+import { getRoomHistory, restoreRoom, deleteRoomSnapshot, isRoomExists } from '../../api/rooms';
+import type { RoomSnapshot } from '../../api/rooms';
 
 interface RoomHistoryProps {
   onRoomRestored: (roomCode: string) => void;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { createRoom, RoomSettings } from '../../api/rooms';
+import { createRoom } from '../../api/rooms';
+import type { RoomSettings } from '../../api/rooms';
 import { getScenarios, type Scenario } from '../../api/scenarios';
 
 interface CreateRoomFormProps {
