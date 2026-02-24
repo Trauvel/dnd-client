@@ -14,6 +14,7 @@ import {
   updateScenarioNpc,
   deleteScenarioNpc,
   type ScenarioNpc,
+  type UpsertScenarioNpcPayload,
 } from '../api/scenarioNpcs';
 
 const ScenariosPage: React.FC = () => {
@@ -690,11 +691,13 @@ const ScenariosPage: React.FC = () => {
               {npcEditing.isNew ? 'Новый NPC' : `Редактирование NPC: ${npcEditing.npc.name}`}
             </h3>
             {(() => {
+              const currentNpc = npcEditing.npc;
+              if (!currentNpc) return null;
               const scenarioForNpc = scenarios.find((sc) => sc.id === npcEditing.scenarioId);
               const imageAttachments =
                 scenarioForNpc?.attachments.filter((f) => f.mimeType?.startsWith('image/')) ?? [];
               const currentImage =
-                imageAttachments.find((f) => f.id === npcEditing.npc.imageFileId) ?? null;
+                imageAttachments.find((f) => f.id === currentNpc.imageFileId) ?? null;
               return (
                 <div
                   style={{
@@ -726,7 +729,7 @@ const ScenariosPage: React.FC = () => {
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
                     ) : (
-                      (npcEditing.npc.name || '?').charAt(0).toUpperCase()
+                      (currentNpc.name || '?').charAt(0).toUpperCase()
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
