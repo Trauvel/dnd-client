@@ -180,6 +180,22 @@ export async function deleteScenarioFile(
   return normalizeScenario(data.scenario);
 }
 
+/** Удалить сценарий (только свой) */
+export async function deleteScenario(scenarioId: string): Promise<void> {
+  const response = await fetch(
+    `${API_CONFIG.WEBSITE_API_URL}/api/scenarios/${scenarioId}`,
+    {
+      method: 'DELETE',
+      headers: { ...getAuthHeader() },
+    }
+  );
+  if (!response.ok) {
+    if (response.status === 404) throw new Error('Сценарий не найден');
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка удаления сценария');
+  }
+}
+
 export async function renameScenarioFile(
   scenarioId: string,
   fileId: string,

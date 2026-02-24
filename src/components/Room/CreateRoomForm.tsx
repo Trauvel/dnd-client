@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createRoom } from '../../api/rooms';
 import type { RoomSettings } from '../../api/rooms';
-import { getScenarios, type Scenario } from '../../api/scenarios';
+import { getScenarios, deleteScenario, type Scenario } from '../../api/scenarios';
 
 interface CreateRoomFormProps {
   onRoomCreated: (roomCode: string) => void;
@@ -27,6 +27,18 @@ export const CreateRoomForm: React.FC<CreateRoomFormProps> = ({ onRoomCreated, o
     };
     load();
   }, []);
+
+  const handleDeleteScenario = async (id: string, title: string) => {
+    if (!window.confirm(`Удалить сценарий «${title}»?`)) return;
+    try {
+      await deleteScenario(id);
+      const list = await getScenarios();
+      setScenarios(list);
+      if (scenarioId === id) setScenarioId('');
+    } catch (err: any) {
+      setError(err.message || 'Ошибка удаления сценария');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,6 +106,33 @@ export const CreateRoomForm: React.FC<CreateRoomFormProps> = ({ onRoomCreated, o
               </option>
             ))}
           </select>
+          {scenarios.length > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '13px', color: '#666' }}>
+              <div style={{ marginBottom: '4px' }}>Удалить сценарий:</div>
+              {scenarios.map((s) => (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteScenario(s.id, s.title)}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '12px',
+                      background: '#dc3545',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                    title={`Удалить «${s.title}»`}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: '15px' }}>
