@@ -58,6 +58,17 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
     return modifier >= 0 ? `+${modifier}` : `${modifier}`;
   };
 
+  const handleExportJson = () => {
+    const json = JSON.stringify(character, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(character.characterName || 'character').replace(/[<>:"/\\|?*]/g, '').slice(0, 80).trim() || 'character'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSave = async () => {
     if (!canEdit || !character.id) return;
     setIsSaving(true);
@@ -134,6 +145,7 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
             </button>
           )}
           {saveMessage && <span style={{ color: '#28a745', fontSize: 14 }}>{saveMessage}</span>}
+          <button type="button" onClick={handleExportJson} style={{ padding: '8px 16px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Экспорт JSON</button>
           <button onClick={onClose} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Закрыть</button>
         </div>
         {error && <div style={{ color: '#dc3545', marginTop: 8, fontSize: 14 }}>{error}</div>}
