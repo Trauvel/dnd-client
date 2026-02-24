@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { GameRoom } from '../../api/rooms';
 import { pauseRoom, startGame, getRoomInfo } from '../../api/rooms';
 import { useSocket } from '../../store/socketContext';
 import { useAuth } from '../../store/authContext';
 import { getScenarios, getScenarioById, type Scenario } from '../../api/scenarios';
-import { getCharacterPortrait, getCharacterForView, type CharacterViewResult } from '../../api/characters';
+import { getCharacterPortrait, getCharacterForView, type CharacterViewResult, type Character } from '../../api/characters';
 import { CharacterSheetView } from '../Character/CharacterSheetView';
 
 const DICE_SIDES = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100];
@@ -31,6 +32,11 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [characterSheetView, setCharacterSheetView] = useState<CharacterViewResult | null>(null);
   const [characterSheetLoading, setCharacterSheetLoading] = useState(false);
   const [characterSheetError, setCharacterSheetError] = useState<string | null>(null);
+  const [characterPreviews, setCharacterPreviews] = useState<Record<string, Character>>({});
+  const [hoveredPlayerKey, setHoveredPlayerKey] = useState<string | null>(null);
+  const [tooltipShow, setTooltipShow] = useState(false);
+  const [tooltipAnchorRect, setTooltipAnchorRect] = useState<DOMRect | null>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isMaster = room && user && room.masterId === user.id;
 
@@ -254,6 +260,27 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
       cancelled = true;
     };
   }, [portraitCharacterIdsKey]);
+
+  // Подгружаем данные персонажей: для списка (имя, HP) и для мастера — тултип
+  const roomPlayerCharacterIds = useMemo(() => (room?.players ?? []).map((p) => p.characterId).filter(Boolean) as string[], [room?.players]);
+  useEffect(() => {
+    if (!roomCode || roomPlayerCharacterIds.length === 0) return;
+    let cancelled = false;
+    roomPlayerCharacterIds.forEach((cid) => {
+      getCharacterForView(cid, roomCode)
+        .then((r) => { if (!cancelled) setCharacterPreviews((prev) => ({ ...prev, [cid]: r.character })); })
+        .catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, [roomCode, roomPlayerCharacterIds.join(',')]);
+
+  useEffect(() => {
+    return () => {
+      if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    };
+  }, []);
+
+  const getModifier = (n: number) => (Math.floor((n - 10) / 2) >= 0 ? `+${Math.floor((n - 10) / 2)}` : `${Math.floor((n - 10) / 2)}`);
 
   const loadRoomInfo = async () => {
     try {
@@ -809,13 +836,30 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
             }}
           >
             {displayPlayers.map((p, idx) => {
-              const hp = p.hp ?? 0;
-              const maxHp = p.maxHp ?? hp;
-              const level = p.level ?? 1;
-              const name = p.name || `Игрок ${idx + 1}`;
-              const initial = name.charAt(0).toUpperCase();
               const characterId = p.characterId;
+              const ch = characterId ? characterPreviews[characterId] : null;
+              const name = ch?.characterName ?? p.name ?? `Игрок ${idx + 1}`;
+              const hp = ch != null ? ch.hp : 0;
+              const maxHp = ch != null ? ch.maxHp : 0;
+              const level = ch?.level ?? 1;
+              const initial = name.charAt(0).toUpperCase();
               const portraitUrl = characterId ? portraitUrls[characterId] : undefined;
+              const playerKey = `${p.userId ?? idx}-${characterId ?? ''}`;
+              const handleMouseEnter = (e: React.MouseEvent) => {
+                setHoveredPlayerKey(playerKey);
+                if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+                const el = e.currentTarget as HTMLElement;
+                tooltipTimerRef.current = setTimeout(() => {
+                  setTooltipAnchorRect(el.getBoundingClientRect());
+                  setTooltipShow(true);
+                }, 400);
+              };
+              const handleMouseLeave = () => {
+                if (tooltipTimerRef.current) { clearTimeout(tooltipTimerRef.current); tooltipTimerRef.current = null; }
+                setHoveredPlayerKey(null);
+                setTooltipShow(false);
+                setTooltipAnchorRect(null);
+              };
               return (
                 <div
                   key={p.id || p.userId || idx}
@@ -823,6 +867,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   tabIndex={0}
                   onClick={() => openCharacterSheet(characterId)}
                   onKeyDown={(e) => e.key === 'Enter' && openCharacterSheet(characterId)}
+                  onMouseEnter={isMaster ? handleMouseEnter : undefined}
+                  onMouseLeave={isMaster ? handleMouseLeave : undefined}
                   style={{
                     minWidth: '140px',
                     padding: '10px',
@@ -834,6 +880,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                     alignItems: 'center',
                     gap: '6px',
                     cursor: 'pointer',
+                    position: 'relative',
                   }}
                 >
                   <div
@@ -878,6 +925,54 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           </div>
         </footer>
       )}
+
+      {/* Тултип мастера — портал в body, чтобы не обрезался overflow */}
+      {isMaster && tooltipShow && tooltipAnchorRect && hoveredPlayerKey && (() => {
+        const tooltipPlayer = displayPlayers.find((p, idx) => `${p.userId ?? idx}-${p.characterId ?? ''}` === hoveredPlayerKey);
+        if (!tooltipPlayer) return null;
+        const tc = tooltipPlayer.characterId ? characterPreviews[tooltipPlayer.characterId] : null;
+        const r = tooltipAnchorRect;
+        const tipName = tc?.characterName ?? tooltipPlayer.name ?? '';
+        const tipHp = tc != null ? tc.hp : 0;
+        const tipMaxHp = tc != null ? tc.maxHp : 0;
+        const tipLevel = tc?.level ?? 1;
+        const tipAc = tc?.armorClass ?? 0;
+        const tipInit = tc?.initiative ?? 0;
+        const tipSpeed = tc?.speed ?? 0;
+        const tipStr = tc?.strength ?? 10;
+        const tipDex = tc?.dexterity ?? 10;
+        const tipCon = tc?.constitution ?? 10;
+        const tipInt = tc?.intelligence ?? 10;
+        const tipWis = tc?.wisdom ?? 10;
+        const tipCha = tc?.charisma ?? 10;
+        return createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              left: r.left + r.width / 2,
+              bottom: typeof window !== 'undefined' ? window.innerHeight - r.top + 8 : 0,
+              transform: 'translateX(-50%)',
+              background: '#1a1a1a',
+              color: '#eee',
+              padding: '10px 12px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              minWidth: '200px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              zIndex: 100000,
+              pointerEvents: 'none',
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 6, borderBottom: '1px solid #444', paddingBottom: 4 }}>{tipName}</div>
+            <div>Ур. {tipLevel} · HP {tipHp}/{tipMaxHp}</div>
+            <div>КД {tipAc} · Инит {tipInit >= 0 ? `+${tipInit}` : tipInit} · Скорость {tipSpeed}</div>
+            <div style={{ marginTop: 4, color: '#aaa', fontSize: 11 }}>
+              Сил {getModifier(tipStr)} · Лов {getModifier(tipDex)} · Вын {getModifier(tipCon)} · Инт {getModifier(tipInt)} · Муд {getModifier(tipWis)} · Хар {getModifier(tipCha)}
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
 
       {/* Модальное окно листа персонажа */}
       {(characterSheetLoading || characterSheetError || characterSheetView) && (
