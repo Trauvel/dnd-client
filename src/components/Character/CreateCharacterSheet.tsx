@@ -12,8 +12,13 @@ import '../../pages/PlayerPage.css';
 export interface CreateDraft {
   characterName: string;
   class: string;
+  classArchetype: string;
   race: string;
+  subrace: string;
+  weight: string;
+  height: string;
   backstory: string;
+  appearance: string;
   experience: number;
   hp: number;
   maxHp: number;
@@ -33,8 +38,13 @@ export interface CreateDraft {
 const defaultDraft: CreateDraft = {
   characterName: '',
   class: '',
+  classArchetype: '',
   race: '',
+  subrace: '',
+  weight: '',
+  height: '',
   backstory: '',
+  appearance: '',
   experience: 0,
   hp: 10,
   maxHp: 10,
@@ -93,8 +103,13 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
       const updateData = {
         characterName: name,
         class: draft.class || undefined,
+        classArchetype: draft.classArchetype || undefined,
         race: draft.race || undefined,
+        subrace: draft.subrace || undefined,
+        weight: draft.weight || undefined,
+        height: draft.height || undefined,
         backstory: draft.backstory || undefined,
+        appearance: draft.appearance || undefined,
         experience: draft.experience,
         hp: draft.hp,
         maxHp: draft.maxHp,
@@ -131,14 +146,25 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
       </div>
 
       <form id="create-sheet-form" onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
           <div><label style={labelStyle}>Имя персонажа</label><br />{input('text', draft.characterName, (v) => setDraft((p) => ({ ...p, characterName: String(v) })), { placeholder: 'Обязательно' })}</div>
           <div><label style={labelStyle}>Класс и уровень</label><br /><span style={{ display: 'flex', gap: 4 }}>{input('text', draft.class, (v) => setDraft((p) => ({ ...p, ['class']: String(v) })))}<span style={{ ...sheetStyle, width: 40, textAlign: 'center', lineHeight: '28px' }}>{level}</span></span></div>
-          <div><label style={labelStyle}>Предистория</label><br />{input('text', draft.backstory, (v) => setDraft((p) => ({ ...p, backstory: String(v) })))}</div>
           <div><label style={labelStyle}>Имя игрока</label><br /><input type="text" placeholder="—" readOnly style={{ ...sheetStyle, background: '#f5f5f5' }} /></div>
-          <div><label style={labelStyle}>Раса</label><br />{input('text', draft.race, (v) => setDraft((p) => ({ ...p, race: String(v) })))}</div>
-          <div><label style={labelStyle}>Мировоззрение</label><br /><input type="text" value={sheetData.alignment ?? ''} onChange={(e) => updateSheet({ alignment: e.target.value })} style={sheetStyle} /></div>
           <div><label style={labelStyle}>Опыт</label><br />{input('number', draft.experience, (v) => setDraft((p) => ({ ...p, experience: typeof v === 'number' ? v : 0 })), { min: 0 })}</div>
+          <div><label style={labelStyle}>Раса</label><br />{input('text', draft.race, (v) => setDraft((p) => ({ ...p, race: String(v) })))}</div>
+          <div><label style={labelStyle}>Архетип класса</label><br />{input('text', draft.classArchetype, (v) => setDraft((p) => ({ ...p, classArchetype: String(v) })), { placeholder: 'например Вор' })}</div>
+          <div><label style={labelStyle}>Мировоззрение</label><br /><input type="text" value={sheetData.alignment ?? ''} onChange={(e) => updateSheet({ alignment: e.target.value })} style={sheetStyle} /></div>
+          <div><label style={labelStyle}>Подраса</label><br />{input('text', draft.subrace, (v) => setDraft((p) => ({ ...p, subrace: String(v) })), { placeholder: 'например Дроу' })}</div>
+          <div><label style={labelStyle}>Вес</label><br />{input('text', draft.weight, (v) => setDraft((p) => ({ ...p, weight: String(v) })), { placeholder: '55 кг' })}</div>
+          <div><label style={labelStyle}>Рост</label><br />{input('text', draft.height, (v) => setDraft((p) => ({ ...p, height: String(v) })), { placeholder: '185 см' })}</div>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Предистория</label>
+          <textarea value={draft.backstory} onChange={(e) => setDraft((p) => ({ ...p, backstory: e.target.value }))} rows={3} style={{ ...sheetStyle, resize: 'vertical', width: '100%', marginTop: 4 }} placeholder="Рассказ о прошлом персонажа..." />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Внешность</label>
+          <textarea value={draft.appearance} onChange={(e) => setDraft((p) => ({ ...p, appearance: e.target.value }))} rows={2} style={{ ...sheetStyle, resize: 'vertical', width: '100%', marginTop: 4 }} placeholder="Описание внешности..." />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(280px, 1.2fr) minmax(200px, 1fr)', gap: 16, alignItems: 'start' }}>

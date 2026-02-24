@@ -140,14 +140,25 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
       </div>
 
       {/* Шапка как на листе */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
         <div><label style={labelStyle}>Имя персонажа</label><br />{input('text', character.characterName || '', (v) => updateStat('characterName', v))}</div>
         <div><label style={labelStyle}>Класс и уровень</label><br /><span style={{ display: 'flex', gap: 4 }}>{input('text', character.class ?? '', (v) => updateStat('class', v))}<span style={{ ...sheetStyle, width: 40, textAlign: 'center', lineHeight: '28px' }}>{level}</span></span></div>
-        <div><label style={labelStyle}>Предистория</label><br />{input('text', character.backstory ?? '', (v) => updateStat('backstory', v))}</div>
         <div><label style={labelStyle}>Имя игрока</label><br /><input type="text" placeholder="—" readOnly style={{ ...sheetStyle, background: '#f5f5f5' }} /></div>
-        <div><label style={labelStyle}>Раса</label><br />{input('text', character.race ?? '', (v) => updateStat('race', v))}</div>
-        <div><label style={labelStyle}>Мировоззрение</label><br /><input type="text" value={sheetData.alignment ?? ''} onChange={(e) => updateSheetData({ alignment: e.target.value })} disabled={!canEdit} style={sheetStyle} /></div>
         <div><label style={labelStyle}>Опыт</label><br />{input('number', character.experience ?? 0, (v) => updateStat('experience', v), { min: 0 })}</div>
+        <div><label style={labelStyle}>Раса</label><br />{input('text', character.race ?? '', (v) => updateStat('race', v))}</div>
+        <div><label style={labelStyle}>Архетип класса</label><br />{input('text', character.classArchetype ?? '', (v) => updateStat('classArchetype', v), { placeholder: 'например Вор' })}</div>
+        <div><label style={labelStyle}>Мировоззрение</label><br /><input type="text" value={sheetData.alignment ?? ''} onChange={(e) => updateSheetData({ alignment: e.target.value })} disabled={!canEdit} style={sheetStyle} /></div>
+        <div><label style={labelStyle}>Подраса</label><br />{input('text', character.subrace ?? '', (v) => updateStat('subrace', v), { placeholder: 'например Дроу' })}</div>
+        <div><label style={labelStyle}>Вес</label><br />{input('text', character.weight ?? '', (v) => updateStat('weight', v), { placeholder: '55 кг' })}</div>
+        <div><label style={labelStyle}>Рост</label><br />{input('text', character.height ?? '', (v) => updateStat('height', v), { placeholder: '185 см' })}</div>
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <label style={labelStyle}>Предистория</label>
+        <textarea value={character.backstory ?? ''} onChange={(e) => updateStat('backstory', e.target.value)} disabled={!canEdit} rows={3} style={{ ...sheetStyle, resize: 'vertical', width: '100%', marginTop: 4 }} placeholder="Рассказ о прошлом персонажа..." />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <label style={labelStyle}>Внешность</label>
+        <textarea value={character.appearance ?? ''} onChange={(e) => updateStat('appearance', e.target.value)} disabled={!canEdit} rows={2} style={{ ...sheetStyle, resize: 'vertical', width: '100%', marginTop: 4 }} placeholder="Описание внешности..." />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(280px, 1.2fr) minmax(200px, 1fr)', gap: 16, alignItems: 'start' }}>
