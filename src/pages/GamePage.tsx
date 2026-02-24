@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useSocket } from "../store/socketContext";
 import { CreateRoomForm } from "../components/Room/CreateRoomForm";
 import { JoinRoomForm } from "../components/Room/JoinRoomForm";
@@ -10,15 +10,19 @@ type GamePageView = 'menu' | 'create' | 'join' | 'lobby';
 
 const GamePage: React.FC = () => {
   const { roomCode: urlRoomCode } = useParams<{ roomCode?: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const [view, setView] = useState<GamePageView>('menu');
   const { roomCode: currentRoomCode, disconnect } = useSocket();
 
+  // Код комнаты из URL (fallback из pathname, если useParams ещё не обновился при навигации)
+  const roomCodeFromUrl = urlRoomCode ?? (location.pathname.match(/^\/room\/([^/]+)$/)?.[1] ?? null);
+
   // В комнате по URL — показываем лобби (после перезагрузки остаёмся в игре)
-  if (urlRoomCode) {
+  if (roomCodeFromUrl) {
     return (
       <RoomLobby
-        roomCode={urlRoomCode}
+        roomCode={roomCodeFromUrl}
         onLeave={() => {
           disconnect();
           navigate('/');

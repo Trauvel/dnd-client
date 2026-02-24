@@ -7,6 +7,8 @@ import { getScenarios, getScenarioById, type Scenario } from '../../api/scenario
 import { getCharacterPortrait, getCharacterForView, type CharacterViewResult } from '../../api/characters';
 import { CharacterSheetView } from '../Character/CharacterSheetView';
 
+const DICE_SIDES = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100];
+
 interface RoomLobbyProps {
   roomCode: string;
   onLeave: () => void;
@@ -23,7 +25,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [activeAttachmentId, setActiveAttachmentId] = useState<string | null>(null);
   const [overlayHidden, setOverlayHidden] = useState(false);
   const [portraitUrls, setPortraitUrls] = useState<Record<string, string>>({});
-  const [diceInput, setDiceInput] = useState('');
+  const [diceSides, setDiceSides] = useState<number>(20);
+  const [diceCount, setDiceCount] = useState<number>(1);
   const [diceLog, setDiceLog] = useState<Array<{ username: string; formula: string; result: number[]; total: number }>>([]);
   const [characterSheetView, setCharacterSheetView] = useState<CharacterViewResult | null>(null);
   const [characterSheetLoading, setCharacterSheetLoading] = useState(false);
@@ -50,16 +53,6 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     setCharacterSheetView(null);
     setCharacterSheetError(null);
   };
-
-  function parseDiceFormula(input: string): { count: number; sides: number } | null {
-    const trimmed = input.trim().replace(/\s+/g, '');
-    const match = trimmed.match(/^(\d+)[кkK](\d+)$/i);
-    if (!match) return null;
-    const count = parseInt(match[1], 10);
-    const sides = parseInt(match[2], 10);
-    if (count < 1 || count > 20 || sides < 2 || sides > 100) return null;
-    return { count, sides };
-  }
 
   function rollDiceLocal(count: number, sides: number): { result: number[]; total: number } {
     const result: number[] = [];
@@ -275,14 +268,10 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   };
 
   const handleRollDice = () => {
-    const parsed = parseDiceFormula(diceInput);
-    if (!parsed || !socket) {
-      return;
-    }
-    const normalized = `${parsed.count}к${parsed.sides}`;
-    const { result, total } = rollDiceLocal(parsed.count, parsed.sides);
+    if (!socket) return;
+    const normalized = `${diceCount}к${diceSides}`;
+    const { result, total } = rollDiceLocal(diceCount, diceSides);
     socket.emit('dice:roll', { formula: normalized, result, total });
-    setDiceInput('');
   };
 
   const handlePause = async (paused: boolean) => {
@@ -309,6 +298,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
 
   const fullScreenWrap = {
     minHeight: '100vh',
+    width: '100%',
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
@@ -316,23 +306,37 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     padding: '20px',
     background: '#f0f0f0',
     color: '#333',
+    boxSizing: 'border-box' as const,
   };
 
+  // Всегда оборачиваем в контейнер с фоном, чтобы при навигации не было чёрного экрана
+  const rootWrap = { minHeight: '100vh', width: '100%', background: '#f0f0f0', boxSizing: 'border-box' as const };
+
   if (isLoading) {
-    return <div style={fullScreenWrap}>Загрузка...</div>;
+    return (
+      <div style={rootWrap}>
+        <div style={fullScreenWrap}>Загрузка...</div>
+      </div>
+    );
   }
 
   if (error && !room) {
     return (
-      <div style={fullScreenWrap}>
-        <div style={{ color: '#dc3545', marginBottom: '15px' }}>{error}</div>
-        <button onClick={onLeave}>Вернуться</button>
+      <div style={rootWrap}>
+        <div style={fullScreenWrap}>
+          <div style={{ color: '#dc3545', marginBottom: '15px' }}>{error}</div>
+          <button onClick={onLeave}>Вернуться</button>
+        </div>
       </div>
     );
   }
 
   if (!room) {
-    return <div style={fullScreenWrap}>Комната не найдена</div>;
+    return (
+      <div style={rootWrap}>
+        <div style={fullScreenWrap}>Комната не найдена</div>
+      </div>
+    );
   }
 
   const playersFromState = GameState?.public?.players || [];
@@ -365,13 +369,16 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     overlayAttachment && activeAttachmentId && !overlayHidden && overlayAttachment.mimeType?.startsWith('image/');
 
   return (
+    <div style={rootWrap}>
     <div
       style={{
         display: 'flex',
         flexDirection: 'column',
+        minHeight: '100vh',
         height: '100vh',
         overflow: 'hidden',
         background: '#f0f0f0',
+        boxSizing: 'border-box',
       }}
     >
       {/* Шапка: слева — ключ, статус, игроки; справа — управление и выход */}
@@ -510,22 +517,41 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           }}
         >
           <h3 style={{ color: '#333', marginBottom: '10px', fontSize: '15px' }}>Кубики</h3>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-            <input
-              type="text"
-              value={diceInput}
-              onChange={(e) => setDiceInput(e.target.value)}
-              placeholder="1к8 или 2к20"
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+            <select
+              value={diceCount}
+              onChange={(e) => setDiceCount(Number(e.target.value))}
               style={{
                 padding: '8px 10px',
                 border: '1px solid #ced4da',
                 borderRadius: '4px',
                 fontSize: '13px',
-                width: '100%',
+                flex: '1',
+                minWidth: '60px',
                 boxSizing: 'border-box',
               }}
-              onKeyDown={(e) => e.key === 'Enter' && handleRollDice()}
-            />
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <select
+              value={diceSides}
+              onChange={(e) => setDiceSides(Number(e.target.value))}
+              style={{
+                padding: '8px 10px',
+                border: '1px solid #ced4da',
+                borderRadius: '4px',
+                fontSize: '13px',
+                flex: '1',
+                minWidth: '70px',
+                boxSizing: 'border-box',
+              }}
+            >
+              {DICE_SIDES.map((s) => (
+                <option key={s} value={s}>d{s}</option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={handleRollDice}
@@ -543,9 +569,6 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
             >
               Бросить
             </button>
-          </div>
-          <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
-            1к8, 2к20 — число кубиков и граней
           </div>
           {diceLog.length > 0 && (
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
@@ -914,11 +937,13 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   closeCharacterSheet();
                   loadRoomInfo();
                 }}
+                roomCode={roomCode}
               />
             )}
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 };

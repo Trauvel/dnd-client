@@ -36,6 +36,8 @@ export interface Character {
   appearance?: string | null;
   imageUrl?: string | null;
   gold?: string | null;
+  languages?: string | null;
+  skills?: string | null;
   characterData?: any;
   createdAt: string;
   updatedAt: string;
@@ -72,6 +74,8 @@ export interface UpdateCharacterRequest {
   appearance?: string;
   imageUrl?: string;
   gold?: string;
+  languages?: string;
+  skills?: string;
   characterData?: any;
 }
 
@@ -232,23 +236,27 @@ export async function createCharacter(data: CreateCharacterRequest): Promise<Cha
 }
 
 /**
- * Обновить данные персонажа
+ * Обновить данные персонажа.
+ * roomCode — при сохранении из комнаты (мастер может сохранять персонажа игрока).
  */
 export async function updateCharacter(
   sessionId: string,
-  data: UpdateCharacterRequest
+  data: UpdateCharacterRequest,
+  roomCode?: string
 ): Promise<Character> {
-  const response = await fetch(
-    `${API_CONFIG.WEBSITE_API_URL}/api/game-session/${sessionId}/update`,
-    {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeader(),
-      },
-      body: JSON.stringify(data),
-    }
+  const url = new URL(
+    `${API_CONFIG.WEBSITE_API_URL}/api/game-session/${sessionId}/update`
   );
+  if (roomCode) url.searchParams.set('roomCode', roomCode);
+
+  const response = await fetch(url.toString(), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+    body: JSON.stringify(data),
+  });
 
   if (!response.ok) {
     if (response.status === 401) {

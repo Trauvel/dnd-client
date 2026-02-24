@@ -80,6 +80,9 @@ const PlayerPage: React.FC = () => {
         appearance: character.appearance ?? undefined,
         imageUrl: character.imageUrl ?? undefined,
         gold: character.gold ?? undefined,
+        languages: character.languages ?? undefined,
+        skills: character.skills ?? undefined,
+        characterData: character.characterData ?? undefined,
       };
 
       const updated = await updateCharacter(id, updateData);
@@ -280,6 +283,24 @@ const PlayerPage: React.FC = () => {
                     value={character.height ?? ''}
                     onChange={(e) => updateCharacterStat('height', e.target.value)}
                     placeholder="185 см"
+                  />
+                </div>
+                <div className="info-item info-item-full">
+                  <label>Языки:</label>
+                  <input
+                    type="text"
+                    value={character.languages ?? ''}
+                    onChange={(e) => updateCharacterStat('languages', e.target.value)}
+                    placeholder="Общий, Эльфийский"
+                  />
+                </div>
+                <div className="info-item info-item-full">
+                  <label>Навыки:</label>
+                  <input
+                    type="text"
+                    value={character.skills ?? ''}
+                    onChange={(e) => updateCharacterStat('skills', e.target.value)}
+                    placeholder="Атлетика, Скрытность, Восприятие"
                   />
                 </div>
                 <div className="info-item info-item-full">
