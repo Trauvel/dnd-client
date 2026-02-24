@@ -9,8 +9,6 @@ import {
 } from '../../types/characterSheet';
 import '../../pages/PlayerPage.css';
 
-const ro = (v: unknown) => (v !== undefined && v !== null ? String(v) : '');
-
 function getSheetData(character: Character): CharacterSheetData {
   const raw = character.characterData;
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_SHEET_DATA };
