@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCharacters, createCharacter, type Character } from '../api/characters';
+import { getCharacters, type Character } from '../api/characters';
 import CharacterCard from '../components/Character/CharacterCard';
+import { CreateCharacterSheet } from '../components/Character/CreateCharacterSheet';
 
 const CharactersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -9,8 +10,6 @@ const CharactersPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newCharacterName, setNewCharacterName] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     loadCharacters();
@@ -29,28 +28,10 @@ const CharactersPage: React.FC = () => {
     }
   };
 
-  const handleCreateCharacter = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCharacterName.trim()) {
-      setError('Введите имя персонажа');
-      return;
-    }
-
-    setIsCreating(true);
-    setError(null);
-    try {
-      const newCharacter = await createCharacter({ characterName: newCharacterName.trim() });
-      // Обновляем список персонажей
-      await loadCharacters();
-      setNewCharacterName('');
-      setShowCreateForm(false);
-      setIsCreating(false);
-      // Переходим на страницу редактирования нового персонажа
-      navigate(`/characters/${newCharacter.id}`);
-    } catch (err: any) {
-      setError(err.message || 'Ошибка создания персонажа');
-      setIsCreating(false);
-    }
+  const handleCreated = (character: Character) => {
+    loadCharacters();
+    setShowCreateForm(false);
+    navigate(`/characters/${character.id}`);
   };
 
   if (isLoading) {
@@ -96,76 +77,11 @@ const CharactersPage: React.FC = () => {
       )}
 
       {showCreateForm && (
-        <div
-          style={{
-            border: '1px solid #ddd',
-            borderRadius: '8px',
-            padding: '20px',
-            marginBottom: '20px',
-            background: '#f9f9f9',
-          }}
-        >
-          <h2 style={{ marginTop: 0, color: '#333' }}>Создать нового персонажа</h2>
-          <form onSubmit={handleCreateCharacter}>
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#333' }}>
-                Имя персонажа:
-              </label>
-              <input
-                type="text"
-                value={newCharacterName}
-                onChange={(e) => setNewCharacterName(e.target.value)}
-                placeholder="Введите имя персонажа"
-                disabled={isCreating}
-                style={{
-                  width: '100%',
-                  maxWidth: '400px',
-                  padding: '8px',
-                  fontSize: '16px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="submit"
-                disabled={isCreating}
-                style={{
-                  padding: '10px 20px',
-                  background: '#007bff',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: isCreating ? 'not-allowed' : 'pointer',
-                  opacity: isCreating ? 0.6 : 1,
-                  fontSize: '16px',
-                }}
-              >
-                {isCreating ? 'Создание...' : 'Создать'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCreateForm(false);
-                  setNewCharacterName('');
-                  setError(null);
-                }}
-                disabled={isCreating}
-                style={{
-                  padding: '10px 20px',
-                  background: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: isCreating ? 'not-allowed' : 'pointer',
-                  fontSize: '16px',
-                }}
-              >
-                Отмена
-              </button>
-            </div>
-          </form>
+        <div style={{ marginBottom: '20px', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+          <CreateCharacterSheet
+            onCancel={() => { setShowCreateForm(false); setError(null); }}
+            onCreated={handleCreated}
+          />
         </div>
       )}
 
