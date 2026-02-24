@@ -12,7 +12,11 @@ import '../../pages/PlayerPage.css';
 function getSheetData(character: Character): CharacterSheetData {
   const raw = character.characterData;
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_SHEET_DATA };
-  return { ...DEFAULT_SHEET_DATA, ...raw };
+  const data = { ...DEFAULT_SHEET_DATA, ...raw };
+  if (data.weapons == null && (raw.weapon != null || raw.attackModifier != null || raw.damage != null)) {
+    data.weapons = [{ name: raw.weapon ?? '', attackModifier: raw.attackModifier ?? '', damage: raw.damage ?? '' }];
+  }
+  return data;
 }
 
 export interface CharacterSheetViewProps {
@@ -309,6 +313,19 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
             </div>
           </div>
           <div><label style={labelStyle}>Снаряжение</label><textarea value={sheetData.equipment ?? ''} onChange={(e) => updateSheetData({ equipment: e.target.value })} disabled={!canEdit} rows={6} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
+          <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Оружие</h3>
+            {(sheetData.weapons ?? []).map((w, index) => (
+              <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #dee2e6', borderRadius: 4 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="text" value={w.name} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...next[index], name: e.target.value }; updateSheetData({ weapons: next }); }} disabled={!canEdit} placeholder="Оружие" style={{ ...sheetStyle, flex: 1, minWidth: 100 }} />
+                  <input type="text" value={w.attackModifier} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...next[index], attackModifier: e.target.value }; updateSheetData({ weapons: next }); }} disabled={!canEdit} placeholder="Мод. атаки (+5)" style={{ ...sheetStyle, width: 100 }} />
+                  <input type="text" value={w.damage} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...next[index], damage: e.target.value }; updateSheetData({ weapons: next }); }} disabled={!canEdit} placeholder="Урон (1d8+3)" style={{ ...sheetStyle, width: 120 }} />
+                  {canEdit && <button type="button" onClick={() => updateSheetData({ weapons: (sheetData.weapons ?? []).filter((_, i) => i !== index) })}>×</button>}
+                </div>
+              </div>
+            ))}
+            {canEdit && <button type="button" onClick={() => updateSheetData({ weapons: [...(sheetData.weapons ?? []), { name: '', attackModifier: '', damage: '' }] })}>+ Оружие</button>}
+          </div>
           {!hideInventory && (
             <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Инвентарь (предметы)</h3>
               {(character.inventory ?? []).map((item, index) => (

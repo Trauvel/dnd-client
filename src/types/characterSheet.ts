@@ -19,6 +19,8 @@ export interface CharacterSheetData {
   flaws?: string;
   featuresTraits?: string;
   equipment?: string;
+  /** Список оружий (название, мод. атаки, урон), добавлять/удалять как предметы */
+  weapons?: { name: string; attackModifier: string; damage: string }[];
 }
 
 export const ABILITY_KEYS = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const;
@@ -66,4 +68,5 @@ export const DEFAULT_SHEET_DATA: CharacterSheetData = {
   flaws: '',
   featuresTraits: '',
   equipment: '',
+  weapons: [],
 };

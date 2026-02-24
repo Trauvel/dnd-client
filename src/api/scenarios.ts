@@ -25,7 +25,7 @@ export interface CreateScenarioRequest {
   description?: string;
 }
 
-function absolutizeUrl(relative?: string | null): string | null | undefined {
+export function absolutizeUrl(relative?: string | null): string | null | undefined {
   if (!relative) return relative;
   // backend отдаёт путь вида /uploads/..., добавляем базовый URL API
   return `${API_CONFIG.WEBSITE_API_URL}${relative}`;

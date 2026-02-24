@@ -7,6 +7,8 @@ import { useAuth } from '../../store/authContext';
 import { getScenarios, getScenarioById, type Scenario } from '../../api/scenarios';
 import { getCharacterPortrait, getCharacterForView, type CharacterViewResult, type Character } from '../../api/characters';
 import { CharacterSheetView } from '../Character/CharacterSheetView';
+import type { CombatState, NpcInstance } from '../../api/socket';
+import { getScenarioNpcsForView, type ScenarioNpc } from '../../api/scenarioNpcs';
 
 const DICE_SIDES = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100];
 
@@ -19,7 +21,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { connect, isConnected, socket, GameState } = useSocket();
+  const { connect, isConnected, socket, GameState, sendAction } = useSocket();
   const { user } = useAuth();
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [unlockedAttachments, setUnlockedAttachments] = useState<string[]>([]);
@@ -37,8 +39,20 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [tooltipShow, setTooltipShow] = useState(false);
   const [tooltipAnchorRect, setTooltipAnchorRect] = useState<DOMRect | null>(null);
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [scenarioNpcs, setScenarioNpcs] = useState<ScenarioNpc[]>([]);
+  const [scenarioNpcsLoading, setScenarioNpcsLoading] = useState(false);
+  const [npcModalOpen, setNpcModalOpen] = useState(false);
+  const [selectedNpcTemplateId, setSelectedNpcTemplateId] = useState<string | null>(null);
+  const [npcSpawnCount, setNpcSpawnCount] = useState<number>(1);
+  const [hoveredNpcId, setHoveredNpcId] = useState<string | null>(null);
+  const [npcTooltipRect, setNpcTooltipRect] = useState<DOMRect | null>(null);
+  const [npcDetail, setNpcDetail] = useState<ScenarioNpc | null>(null);
 
   const isMaster = room && user && room.masterId === user.id;
+  const masterState = GameState?.master;
+  const combat: CombatState | undefined = masterState?.combat;
+  const npcs: NpcInstance[] = masterState?.npcs ?? [];
+  const hasBattleView = npcs.length > 0 || (combat && (combat.active || combat.order.length > 0));
 
   const openCharacterSheet = (characterId: string | undefined) => {
     if (!characterId) {
@@ -294,6 +308,22 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     }
   };
 
+  const loadScenarioNpcsForRoom = async () => {
+    if (!room?.scenarioId || !isMaster) return;
+    setScenarioNpcsLoading(true);
+    try {
+      const list = await getScenarioNpcsForView(room.scenarioId);
+      setScenarioNpcs(list);
+      if (list.length > 0 && !selectedNpcTemplateId) {
+        setSelectedNpcTemplateId(list[0].id);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Ошибка загрузки NPC сценария');
+    } finally {
+      setScenarioNpcsLoading(false);
+    }
+  };
+
   const handleRollDice = () => {
     if (!socket) return;
     const normalized = `${diceCount}к${diceSides}`;
@@ -366,30 +396,23 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     );
   }
 
-  const playersFromState = GameState?.public?.players || [];
   const showLobbyBlock = !room.gameStarted || room.isPaused;
   type DisplayPlayer = {
-    id?: string;
-    userId?: string;
-    name?: string;
+    id: string;
+    userId: string;
+    name: string;
     characterId?: string;
-    hp?: number;
-    maxHp?: number;
-    level?: number;
+    role: 'master' | 'player';
   };
   const displayPlayers: DisplayPlayer[] = (
-    playersFromState.length > 0
-      ? (playersFromState.map((p) => ({
-          ...p,
-          characterId: room.players.find((r) => r.userId === (p as DisplayPlayer).userId)?.characterId,
-        })) as DisplayPlayer[])
-      : room.players.map((p) => ({
-          id: p.userId,
-          userId: p.userId,
-          name: p.username,
-          characterId: p.characterId,
-        }))
-  ).filter((p) => p.userId !== room.masterId);
+    room.players.map((p) => ({
+      id: p.userId,
+      userId: p.userId,
+      name: p.username,
+      characterId: p.characterId,
+      role: p.role,
+    }))
+  ).filter((p) => p.role === 'player');
   const overlayAttachment =
     scenario?.attachments?.find((a) => a.id === activeAttachmentId) || null;
   const centerShowImage =
@@ -619,7 +642,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           )}
         </aside>
 
-        {/* Центр — показ вложения (всегда изображение) */}
+        {/* Центр — показ вложения или зона боя */}
         <section
           style={{
             flex: 1,
@@ -631,7 +654,240 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
             padding: '16px',
           }}
         >
-          {centerShowImage && overlayAttachment ? (
+          {hasBattleView ? (
+            <div style={{ width: '100%', maxWidth: 900, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ color: '#fff', fontSize: 14 }}>
+                  <strong style={{color:'black'}}>{combat?.active ? 'Бой идёт' : 'NPC на поле, бой ещё не начат'}</strong>
+                  {combat?.timerStartedAt && combat.active && (
+                    <span style={{ marginLeft: 8, fontSize: 13, color:'black' }}>(таймер хода отображается у клиентов)</span>
+                  )}
+                </div>
+                {isMaster && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {!combat?.active && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!sendAction) return;
+                          sendAction('combat:start', {});
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: 6,
+                          border: 'none',
+                          background: '#28a745',
+                          color: '#fff',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Начать бой
+                      </button>
+                    )}
+                    {combat?.active && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!sendAction) return;
+                            sendAction('combat:next', {});
+                          }}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: 6,
+                            border: 'none',
+                            background: '#0d6efd',
+                            color: '#fff',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Следующий ход
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!sendAction) return;
+                            sendAction('combat:end', {});
+                          }}
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: 6,
+                            border: 'none',
+                            background: '#dc3545',
+                            color: '#fff',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Закончить бой
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'flex-start' }}>
+                {(combat?.order ?? []).map((p, index) => {
+                  const isCurrent = (combat?.turnIndex ?? 0) === index;
+                  const isNpc = p.kind === 'npc';
+                  const npc = isNpc ? npcs.find((n) => n.id === p.id) : undefined;
+                  const pc = !isNpc ? displayPlayers.find((dp) => dp.userId === p.id) : undefined;
+                  const ch = pc?.characterId ? characterPreviews[pc.characterId] : null;
+                  const name = ch?.characterName || p.name || pc?.name || `Участник ${index + 1}`;
+                  const hp = p.hp ?? npc?.hp ?? ch?.hp;
+                  const maxHp = p.maxHp ?? npc?.maxHp ?? ch?.maxHp;
+                  const imageUrl = isNpc ? npc?.imageUrl : (pc?.characterId ? portraitUrls[pc.characterId] : undefined);
+                  return (
+                    <div
+                      key={`${p.kind}-${p.id}`}
+                      style={{
+                        position: 'relative',
+                        width: 140,
+                        padding: 8,
+                        borderRadius: 8,
+                        border: isCurrent ? '2px solid #0d6efd' : '1px solid #ddd',
+                        background: isCurrent ? '#e7f1ff' : '#fff',
+                        boxShadow: isCurrent ? '0 0 0 2px rgba(13,110,253,0.2)' : 'none',
+                        opacity: p.isDead ? 0.6 : 1,
+                        cursor: isMaster && isNpc ? 'pointer' : 'default',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isMaster || !isNpc) return;
+                        const el = e.currentTarget as HTMLElement;
+                        setHoveredNpcId(npc?.id || p.id);
+                        setNpcTooltipRect(el.getBoundingClientRect());
+                      }}
+                      onMouseLeave={() => {
+                        if (!isMaster || !isNpc) return;
+                        setHoveredNpcId(null);
+                        setNpcTooltipRect(null);
+                      }}
+                      onClick={() => {
+                        if (!isMaster || !isNpc) return;
+                        const tpl = npc?.templateId
+                          ? scenarioNpcs.find((t) => t.id === npc.templateId)
+                          : undefined;
+                        if (tpl) {
+                          setNpcDetail(tpl);
+                        } else {
+                          // Фоллбек из боевого NPC, если шаблон не найден
+                          setNpcDetail({
+                            id: npc?.id || p.id,
+                            scenarioId: room.scenarioId || '',
+                            name,
+                            type: undefined,
+                            armorClass: npc?.armorClass ?? undefined,
+                            armorClassText: undefined,
+                            hpAverage: npc?.maxHp ?? undefined,
+                            hpText: undefined,
+                            speed: npc?.speed != null ? String(npc.speed) : undefined,
+                            strength: undefined,
+                            dexterity: undefined,
+                            constitution: undefined,
+                            intelligence: undefined,
+                            wisdom: undefined,
+                            charisma: undefined,
+                            skills: undefined,
+                            senses: undefined,
+                            languages: undefined,
+                            xp: undefined,
+                            challenge: undefined,
+                            habitat: undefined,
+                            traits: undefined,
+                            abilities: undefined,
+                            actions: undefined,
+                            legendaryActions: undefined,
+                            description: undefined,
+                            imageUrl: npc?.imageUrl ?? undefined,
+                            imageFileId: undefined,
+                          });
+                        }
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: -8,
+                          left: -8,
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          background: '#0d6efd',
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 11,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {index + 1}
+                      </div>
+                      <div
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: isNpc ? 6 : 24,
+                          overflow: 'hidden',
+                          background: '#2a5298',
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 22,
+                          fontWeight: 700,
+                          margin: '0 auto 4px',
+                        }}
+                      >
+                        {imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 13, textAlign: 'center', color: '#000' }}>{name}</div>
+                      <div style={{ fontSize: 11, color: '#333', marginTop: 2, textAlign: 'center' }}>
+                        Инит: {p.initiative >= 0 ? `+${p.initiative}` : p.initiative}
+                      </div>
+                      {hp != null && maxHp != null && (
+                        <div style={{ fontSize: 11, color: '#333', textAlign: 'center' }}>
+                          HP: {hp}/{maxHp}
+                        </div>
+                      )}
+                      {isMaster && isNpc && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!sendAction) return;
+                            sendAction('npc:toggleDead', { npcId: p.id });
+                          }}
+                          style={{
+                            marginTop: 6,
+                            width: '100%',
+                            padding: '3px 0',
+                            borderRadius: 4,
+                            border: 'none',
+                            background: p.isDead ? '#20c997' : '#dc3545',
+                            color: '#fff',
+                            fontSize: 11,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {p.isDead ? 'Возродить' : 'Убить'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : centerShowImage && overlayAttachment ? (
             <img
               src={overlayAttachment.url}
               alt={overlayAttachment.displayName ?? overlayAttachment.fileName}
@@ -674,6 +930,34 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
               <h3 style={{ color: '#333', marginBottom: '12px', fontSize: '15px' }}>
                 Вложения {isMaster ? '(мастер)' : ''}
               </h3>
+              {isMaster && (
+                <div style={{ marginBottom: '10px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await loadScenarioNpcsForRoom();
+                      setNpcModalOpen(true);
+                    }}
+                    disabled={scenarioNpcsLoading || !room.scenarioId}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: scenarioNpcsLoading ? '#6c757d' : '#28a745',
+                      color: '#fff',
+                      fontSize: '12px',
+                      cursor: scenarioNpcsLoading ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {scenarioNpcsLoading ? 'Загрузка NPC...' : '+ NPC'}
+                  </button>
+                  {scenarioNpcs.length > 0 && (
+                    <span style={{ fontSize: 11, color: '#666' }}>
+                      Шаблонов NPC: {scenarioNpcs.length}
+                    </span>
+                  )}
+                </div>
+              )}
               {!scenario ? (
                 <div style={{ color: '#666', fontSize: '13px' }}>Загрузка...</div>
               ) : (() => {
@@ -974,6 +1258,71 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
         );
       })()}
 
+      {/* Тултип по NPC для мастера */}
+      {isMaster && hoveredNpcId && npcTooltipRect && (() => {
+        const npc = npcs.find((n) => n.id === hoveredNpcId);
+        const tpl = npc?.templateId
+          ? scenarioNpcs.find((t) => t.id === npc.templateId)
+          : undefined;
+        if (!npc && !tpl) return null;
+        const r = npcTooltipRect;
+        const tipName = tpl?.name ?? npc?.name ?? '';
+        const tipType = tpl?.type ?? '';
+        const tipAc = tpl?.armorClass ?? npc?.armorClass ?? 0;
+        const tipHpText =
+          tpl?.hpText ||
+          (npc?.hp != null && npc?.maxHp != null ? `${npc.hp}/${npc.maxHp}` : undefined);
+        const tipSpeed = tpl?.speed ?? (npc?.speed != null ? `${npc.speed}` : '');
+        const tipSkills = tpl?.skills ?? '';
+        const tipSenses = tpl?.senses ?? '';
+        const tipLanguages = tpl?.languages ?? '';
+        const tipChallenge =
+          tpl?.challenge && tpl?.xp != null ? `${tpl.challenge} (${tpl.xp} XP)` : tpl?.challenge;
+        return createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              left: r.left + r.width / 2,
+              bottom: typeof window !== 'undefined' ? window.innerHeight - r.top + 8 : 0,
+              transform: 'translateX(-50%)',
+              background: '#1a1a1a',
+              color: '#eee',
+              padding: '10px 12px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              minWidth: '220px',
+              maxWidth: '320px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              zIndex: 100000,
+              pointerEvents: 'none',
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 4, borderBottom: '1px solid #444', paddingBottom: 4 }}>
+              {tipName}
+            </div>
+            {tipType && <div style={{ marginBottom: 2 }}>{tipType}</div>}
+            <div>
+              КД {tipAc}
+              {tpl?.armorClassText ? ` (${tpl.armorClassText})` : ''}
+            </div>
+            {tipHpText && <div>Хиты {tipHpText}</div>}
+            {tipSpeed && <div>Скорость {tipSpeed}</div>}
+            {tipChallenge && <div>Опасность {tipChallenge}</div>}
+            {tpl?.habitat && <div>Местность: {tpl.habitat}</div>}
+            {tipSkills && (
+              <div style={{ marginTop: 4, fontSize: 11, color: '#ccc' }}>Навыки: {tipSkills}</div>
+            )}
+            {tipSenses && (
+              <div style={{ fontSize: 11, color: '#ccc' }}>Чувства: {tipSenses}</div>
+            )}
+            {tipLanguages && (
+              <div style={{ fontSize: 11, color: '#ccc' }}>Языки: {tipLanguages}</div>
+            )}
+          </div>,
+          document.body
+        );
+      })()}
+
       {/* Модальное окно листа персонажа */}
       {(characterSheetLoading || characterSheetError || characterSheetView) && (
         <div
@@ -1035,6 +1384,366 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                 roomCode={roomCode}
               />
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно с подробной карточкой NPC для мастера */}
+      {isMaster && npcDetail && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setNpcDetail(null);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#000',
+              borderRadius: 10,
+              padding: 16,
+              maxWidth: 800,
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 4 }}>{npcDetail.name}</h3>
+            {npcDetail.type && (
+              <div style={{ marginBottom: 6, fontSize: 13 }}>{npcDetail.type}</div>
+            )}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8, alignItems: 'flex-start' }}>
+              <div
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: 8,
+                  border: '1px solid #ddd',
+                  overflow: 'hidden',
+                  background: '#f1f3f5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 28,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                {npcDetail.imageUrl ? (
+                  <img
+                    src={npcDetail.imageUrl}
+                    alt={npcDetail.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  (npcDetail.name || '?').charAt(0).toUpperCase()
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+                <div>
+                  КД {npcDetail.armorClass ?? '-'}
+                  {npcDetail.armorClassText ? ` (${npcDetail.armorClassText})` : ''}
+                </div>
+                {npcDetail.hpText && <div>Хиты {npcDetail.hpText}</div>}
+                {npcDetail.speed && <div>Скорость {npcDetail.speed}</div>}
+                {npcDetail.challenge && (
+                  <div>
+                    Опасность {npcDetail.challenge}
+                    {npcDetail.xp != null ? ` (${npcDetail.xp} XP)` : ''}
+                  </div>
+                )}
+                {npcDetail.habitat && <div>Местность: {npcDetail.habitat}</div>}
+              </div>
+            </div>
+            {(npcDetail.strength ||
+              npcDetail.dexterity ||
+              npcDetail.constitution ||
+              npcDetail.intelligence ||
+              npcDetail.wisdom ||
+              npcDetail.charisma) && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, marginBottom: 8 }}>
+                {[
+                  ['СИЛ', npcDetail.strength],
+                  ['ЛОВ', npcDetail.dexterity],
+                  ['ТЕЛ', npcDetail.constitution],
+                  ['ИНТ', npcDetail.intelligence],
+                  ['МДР', npcDetail.wisdom],
+                  ['ХАР', npcDetail.charisma],
+                ].map(([label, val]) => (
+                  <div key={label as string} style={{ fontSize: 12 }}>
+                    <div style={{ fontWeight: 600 }}>{label}</div>
+                    <div>{val ?? '-'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {(npcDetail.skills || npcDetail.senses || npcDetail.languages) && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                {npcDetail.skills && (
+                  <div>
+                    <strong style={{ fontSize: 12 }}>Навыки</strong>
+                    <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{npcDetail.skills}</div>
+                  </div>
+                )}
+                {npcDetail.senses && (
+                  <div>
+                    <strong style={{ fontSize: 12 }}>Чувства</strong>
+                    <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{npcDetail.senses}</div>
+                  </div>
+                )}
+                {npcDetail.languages && (
+                  <div>
+                    <strong style={{ fontSize: 12 }}>Языки</strong>
+                    <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{npcDetail.languages}</div>
+                  </div>
+                )}
+              </div>
+            )}
+            {npcDetail.description && (
+              <div style={{ marginBottom: 8, fontSize: 13, whiteSpace: 'pre-wrap' }}>
+                {npcDetail.description}
+              </div>
+            )}
+            {npcDetail.traits && (
+              <div style={{ marginBottom: 8 }}>
+                <strong>Преимущества / черты</strong>
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{npcDetail.traits}</div>
+              </div>
+            )}
+            {npcDetail.actions && (
+              <div style={{ marginBottom: 8 }}>
+                <strong>Действия</strong>
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{npcDetail.actions}</div>
+              </div>
+            )}
+            {npcDetail.abilities && (
+              <div style={{ marginBottom: 8 }}>
+                <strong>Способности</strong>
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{npcDetail.abilities}</div>
+              </div>
+            )}
+            {npcDetail.legendaryActions && (
+              <div style={{ marginBottom: 8 }}>
+                <strong>Легендарные действия</strong>
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{npcDetail.legendaryActions}</div>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => setNpcDetail(null)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: '#6c757d',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модалка выбора NPC-шаблона для спавна */}
+      {isMaster && npcModalOpen && room?.scenarioId && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setNpcModalOpen(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#000',
+              borderRadius: 10,
+              padding: 16,
+              maxWidth: 780,
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Добавить NPC из сценария</h3>
+            {scenarioNpcsLoading && scenarioNpcs.length === 0 ? (
+              <div style={{ fontSize: 14 }}>Загрузка NPC...</div>
+            ) : scenarioNpcs.length === 0 ? (
+              <div style={{ fontSize: 14 }}>В этом сценарии ещё нет NPC. Создай их на странице сценариев.</div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                  marginBottom: 12,
+                }}
+              >
+                {scenarioNpcs.map((npc) => {
+                  const selected = npc.id === selectedNpcTemplateId;
+                  return (
+                    <button
+                      key={npc.id}
+                      type="button"
+                      onClick={() => setSelectedNpcTemplateId(npc.id)}
+                      style={{
+                        textAlign: 'left',
+                        borderRadius: 8,
+                        padding: 8,
+                        width: 220,
+                        border: selected ? '2px solid #0d6efd' : '1px solid #ddd',
+                        background: selected ? '#e7f1ff' : '#f8f9fa',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 6,
+                            overflow: 'hidden',
+                            background: '#e9ecef',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {npc.imageUrl ? (
+                            <img
+                              src={npc.imageUrl}
+                              alt={npc.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            (npc.name || '?').charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{npc.name}</div>
+                          {npc.type && (
+                            <div style={{ fontSize: 11, color: '#555' }}>{npc.type}</div>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#333' }}>
+                        {npc.armorClass != null && (
+                          <div>
+                            КД {npc.armorClass}
+                            {npc.armorClassText ? ` (${npc.armorClassText})` : ''}
+                          </div>
+                        )}
+                        {npc.hpText && <div>Хиты {npc.hpText}</div>}
+                        {npc.speed && <div>Скорость {npc.speed}</div>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 13 }}>Количество копий:</span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={npcSpawnCount}
+                onChange={(e) => setNpcSpawnCount(Math.max(1, Number(e.target.value) || 1))}
+                style={{ width: 80 }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setNpcModalOpen(false)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: '#6c757d',
+                  color: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!sendAction || !selectedNpcTemplateId || !room?.scenarioId) return;
+                  const template = scenarioNpcs.find((n) => n.id === selectedNpcTemplateId);
+                  if (!template) return;
+                  const instances = Array.from({ length: npcSpawnCount }, (_, i) => {
+                    const baseName = template.name || 'NPC';
+                    const name = npcSpawnCount > 1 ? `${baseName} #${i + 1}` : baseName;
+                    const hpAverage = template.hpAverage ?? undefined;
+                    const speedNumber =
+                      template.speed && /^\d+/.test(template.speed)
+                        ? Number((template.speed.match(/^\d+/) || ['0'])[0])
+                        : undefined;
+                    return {
+                      templateId: template.id,
+                      name,
+                      imageUrl: template.imageUrl ?? undefined,
+                      armorClass: template.armorClass ?? undefined,
+                      hp: hpAverage,
+                      maxHp: hpAverage,
+                      speed: speedNumber,
+                      initiative: 0,
+                      isDead: false,
+                    };
+                  });
+                  sendAction('npc:spawn', {
+                    instances,
+                  });
+                  setOverlayHidden(true);
+                  setNpcModalOpen(false);
+                }}
+                disabled={!selectedNpcTemplateId}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: selectedNpcTemplateId ? '#28a745' : '#adb5bd',
+                  color: '#fff',
+                  cursor: selectedNpcTemplateId ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Создать NPC
+              </button>
+            </div>
           </div>
         </div>
       )}

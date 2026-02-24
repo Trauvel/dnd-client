@@ -293,6 +293,19 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
               </div>
             </div>
             <div><label style={labelStyle}>Снаряжение</label><textarea value={sheetData.equipment ?? ''} onChange={(e) => updateSheet({ equipment: e.target.value })} rows={6} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
+            <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Оружие</h3>
+              {(sheetData.weapons ?? []).map((w, index) => (
+                <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #dee2e6', borderRadius: 4 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input type="text" value={w.name} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...next[index], name: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Оружие" style={{ ...sheetStyle, flex: 1, minWidth: 100 }} />
+                    <input type="text" value={w.attackModifier} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...next[index], attackModifier: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Мод. атаки (+5)" style={{ ...sheetStyle, width: 100 }} />
+                    <input type="text" value={w.damage} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...next[index], damage: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Урон (1d8+3)" style={{ ...sheetStyle, width: 120 }} />
+                    <button type="button" onClick={() => updateSheet({ weapons: (sheetData.weapons ?? []).filter((_, i) => i !== index) })}>×</button>
+                  </div>
+                </div>
+              ))}
+              <button type="button" onClick={() => updateSheet({ weapons: [...(sheetData.weapons ?? []), { name: '', attackModifier: '', damage: '' }] })}>+ Оружие</button>
+            </div>
             <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Инвентарь</h3>
               {draft.inventory.map((item, index) => (
                 <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #dee2e6', borderRadius: 4 }}>

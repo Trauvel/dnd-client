@@ -8,6 +8,13 @@ import {
   renameScenarioFile,
   type Scenario,
 } from '../api/scenarios';
+import {
+  getScenarioNpcs,
+  createScenarioNpc,
+  updateScenarioNpc,
+  deleteScenarioNpc,
+  type ScenarioNpc,
+} from '../api/scenarioNpcs';
 
 const ScenariosPage: React.FC = () => {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -18,6 +25,13 @@ const ScenariosPage: React.FC = () => {
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [npcByScenario, setNpcByScenario] = useState<Record<string, ScenarioNpc[]>>({});
+  const [npcLoading, setNpcLoading] = useState<Record<string, boolean>>({});
+  const [npcEditing, setNpcEditing] = useState<{
+    scenarioId: string | null;
+    npc: Partial<ScenarioNpc> | null;
+    isNew: boolean;
+  }>({ scenarioId: null, npc: null, isNew: true });
 
   useEffect(() => {
     load();
@@ -33,6 +47,18 @@ const ScenariosPage: React.FC = () => {
       setError(err.message || 'Ошибка загрузки сценариев');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadNpcs = async (scenarioId: string) => {
+    setNpcLoading((prev) => ({ ...prev, [scenarioId]: true }));
+    try {
+      const list = await getScenarioNpcs(scenarioId);
+      setNpcByScenario((prev) => ({ ...prev, [scenarioId]: list }));
+    } catch (err: any) {
+      setError(err.message || 'Ошибка загрузки NPC сценария');
+    } finally {
+      setNpcLoading((prev) => ({ ...prev, [scenarioId]: false }));
     }
   };
 
@@ -400,6 +426,198 @@ const ScenariosPage: React.FC = () => {
                   </div>
                 )}
 
+                <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #eee' }}>
+                  <h4 style={{ margin: '0 0 8px', fontSize: '14px' }}>NPC этого сценария</h4>
+                  <button
+                    type="button"
+                    onClick={() => loadNpcs(s.id)}
+                    disabled={npcLoading[s.id]}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: '#17a2b8',
+                      color: '#fff',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    {npcLoading[s.id] ? 'Загрузка NPC...' : 'Обновить список NPC'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNpcEditing({
+                        scenarioId: s.id,
+                        npc: {
+                          name: '',
+                          type: '',
+                          hpText: '',
+                          speed: '',
+                          armorClass: undefined,
+                          challenge: '',
+                          xp: undefined,
+                          habitat: '',
+                          description: '',
+                        },
+                        isNew: true,
+                      })
+                    }
+                    style={{
+                      marginLeft: '8px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: '#28a745',
+                      color: '#fff',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    + NPC
+                  </button>
+                  <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {(npcByScenario[s.id] ?? []).length === 0 && !npcLoading[s.id] && (
+                      <div style={{ fontSize: '13px', color: '#666' }}>NPC пока нет.</div>
+                    )}
+                    {(npcByScenario[s.id] ?? []).map((npc) => (
+                      <div
+                        key={npc.id}
+                        style={{
+                          border: '1px solid #ddd',
+                          borderRadius: '8px',
+                          padding: '8px',
+                          width: '260px',
+                          background: '#f8f9fa',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '6px',
+                              overflow: 'hidden',
+                              background: '#e9ecef',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '18px',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {npc.imageUrl ? (
+                              <img
+                                src={npc.imageUrl}
+                                alt={npc.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              (npc.name || '?').charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: '14px' }}>{npc.name}</div>
+                            {npc.type && (
+                              <div style={{ fontSize: '12px', color: '#555' }}>{npc.type}</div>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#333', marginTop: '4px' }}>
+                          {npc.armorClass != null && (
+                            <div>
+                              КД {npc.armorClass}
+                              {npc.armorClassText ? ` (${npc.armorClassText})` : ''}
+                            </div>
+                          )}
+                          {npc.hpText && <div>Хиты {npc.hpText}</div>}
+                          {npc.speed && <div>Скорость {npc.speed}</div>}
+                          {(npc.challenge || npc.xp != null) && (
+                            <div>
+                              Опасность {npc.challenge || '-'}
+                              {npc.xp != null ? ` (${npc.xp} XP)` : ''}
+                            </div>
+                          )}
+                          {npc.habitat && <div>Местность: {npc.habitat}</div>}
+                        </div>
+                        {npc.description && (
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              color: '#555',
+                              marginTop: '4px',
+                              maxHeight: '60px',
+                              overflow: 'auto',
+                            }}
+                          >
+                            {npc.description}
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: '4px',
+                            marginTop: '6px',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNpcEditing({
+                                scenarioId: s.id,
+                                npc,
+                                isNew: false,
+                              })
+                            }
+                            style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              border: 'none',
+                              background: '#007bff',
+                              color: '#fff',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Править
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!window.confirm(`Удалить NPC "${npc.name}"?`)) return;
+                              try {
+                                await deleteScenarioNpc(s.id, npc.id);
+                                setNpcByScenario((prev) => ({
+                                  ...prev,
+                                  [s.id]: (prev[s.id] ?? []).filter((n) => n.id !== npc.id),
+                                }));
+                              } catch (err: any) {
+                                setError(err.message || 'Ошибка удаления NPC');
+                              }
+                            }}
+                            style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              border: 'none',
+                              background: '#dc3545',
+                              color: '#fff',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div style={{ marginTop: '8px' }}>
                   <label
                     style={{
@@ -436,6 +654,508 @@ const ScenariosPage: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {npcEditing.scenarioId && npcEditing.npc && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setNpcEditing({ scenarioId: null, npc: null, isNew: true });
+            }
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#000',
+              borderRadius: 10,
+              padding: 16,
+              maxWidth: 700,
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 8 }}>
+              {npcEditing.isNew ? 'Новый NPC' : `Редактирование NPC: ${npcEditing.npc.name}`}
+            </h3>
+            {(() => {
+              const scenarioForNpc = scenarios.find((sc) => sc.id === npcEditing.scenarioId);
+              const imageAttachments =
+                scenarioForNpc?.attachments.filter((f) => f.mimeType?.startsWith('image/')) ?? [];
+              const currentImage =
+                imageAttachments.find((f) => f.id === npcEditing.npc.imageFileId) ?? null;
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 12,
+                    marginBottom: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 8,
+                      border: '1px solid #ddd',
+                      overflow: 'hidden',
+                      background: '#f1f3f5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 24,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {currentImage ? (
+                      <img
+                        src={currentImage.url}
+                        alt={currentImage.displayName ?? currentImage.fileName}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      (npcEditing.npc.name || '?').charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ marginBottom: 6 }}>
+                      <label
+                        style={{
+                          display: 'block',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          marginBottom: 2,
+                        }}
+                      >
+                        Картинка NPC (из вложений сценария)
+                      </label>
+                      <select
+                        value={npcEditing.npc.imageFileId ?? ''}
+                        onChange={(e) =>
+                          setNpcEditing((prev) =>
+                            prev.scenarioId
+                              ? {
+                                  ...prev,
+                                  npc: {
+                                    ...prev.npc!,
+                                    imageFileId: e.target.value || undefined,
+                                  },
+                                }
+                              : prev
+                          )
+                        }
+                        style={{ width: '100%', fontSize: 12 }}
+                      >
+                        <option value="">— без картинки —</option>
+                        {imageAttachments.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.displayName ?? f.fileName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#666' }}>
+                      Чтобы загрузить новую картинку, добавь её во вложения сценария выше, а затем выбери в этом списке.
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 1.2fr', gap: 8, marginBottom: 8 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Имя</label>
+                <input
+                  type="text"
+                  value={npcEditing.npc.name ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, name: e.target.value } }
+                        : prev
+                    )
+                  }
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>
+                  Тип/размер/мировоззрение
+                </label>
+                <input
+                  type="text"
+                  value={npcEditing.npc.type ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, type: e.target.value } }
+                        : prev
+                    )
+                  }
+                  placeholder='например: "Средний гуманоид, Нейтральный"'
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Местность</label>
+                <input
+                  type="text"
+                  value={npcEditing.npc.habitat ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, habitat: e.target.value } }
+                        : prev
+                    )
+                  }
+                  placeholder="например: Город"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 8 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>КД</label>
+                <input
+                  type="number"
+                  value={npcEditing.npc.armorClass ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? {
+                            ...prev,
+                            npc: {
+                              ...prev.npc!,
+                              armorClass: e.target.value ? Number(e.target.value) : undefined,
+                            },
+                          }
+                        : prev
+                    )
+                  }
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>КД (текст)</label>
+                <input
+                  type="text"
+                  value={npcEditing.npc.armorClassText ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, armorClassText: e.target.value } }
+                        : prev
+                    )
+                  }
+                  placeholder="например: Кожаный доспех"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Хиты (текст)</label>
+                <input
+                  type="text"
+                  value={npcEditing.npc.hpText ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, hpText: e.target.value } }
+                        : prev
+                    )
+                  }
+                  placeholder="напр. 9 (2d8)"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Скорость</label>
+                <input
+                  type="text"
+                  value={npcEditing.npc.speed ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, speed: e.target.value } }
+                        : prev
+                    )
+                  }
+                  placeholder="30 ft."
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 8 }}>
+              {(
+                [
+                  ['strength', 'СИЛ'],
+                  ['dexterity', 'ЛОВ'],
+                  ['constitution', 'ТЕЛ'],
+                  ['intelligence', 'ИНТ'],
+                  ['wisdom', 'МДР'],
+                  ['charisma', 'ХАР'],
+                ] as const
+              ).map(([key, label]) => (
+                <div key={key}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>{label}</label>
+                  <input
+                    type="number"
+                    value={(npcEditing.npc as any)[key] ?? ''}
+                    onChange={(e) =>
+                      setNpcEditing((prev) =>
+                        prev.scenarioId
+                          ? {
+                              ...prev,
+                              npc: {
+                                ...prev.npc!,
+                                [key]: e.target.value ? Number(e.target.value) : undefined,
+                              },
+                            }
+                          : prev
+                      )
+                    }
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Навыки</label>
+                <textarea
+                  rows={2}
+                  value={npcEditing.npc.skills ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, skills: e.target.value } }
+                        : prev
+                    )
+                  }
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Чувства</label>
+                <textarea
+                  rows={2}
+                  value={npcEditing.npc.senses ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, senses: e.target.value } }
+                        : prev
+                    )
+                  }
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Языки</label>
+                <textarea
+                  rows={2}
+                  value={npcEditing.npc.languages ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, languages: e.target.value } }
+                        : prev
+                    )
+                  }
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>
+                  Опасность и XP
+                </label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    type="text"
+                    value={npcEditing.npc.challenge ?? ''}
+                    onChange={(e) =>
+                      setNpcEditing((prev) =>
+                        prev.scenarioId
+                          ? { ...prev, npc: { ...prev.npc!, challenge: e.target.value } }
+                          : prev
+                      )
+                    }
+                    placeholder="1/8"
+                    style={{ flex: 1 }}
+                  />
+                  <input
+                    type="number"
+                    value={npcEditing.npc.xp ?? ''}
+                    onChange={(e) =>
+                      setNpcEditing((prev) =>
+                        prev.scenarioId
+                          ? {
+                              ...prev,
+                              npc: {
+                                ...prev.npc!,
+                                xp: e.target.value ? Number(e.target.value) : undefined,
+                              },
+                            }
+                          : prev
+                      )
+                    }
+                    placeholder="25"
+                    style={{ width: 80 }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Описание</label>
+              <textarea
+                rows={3}
+                value={npcEditing.npc.description ?? ''}
+                onChange={(e) =>
+                  setNpcEditing((prev) =>
+                    prev.scenarioId
+                      ? { ...prev, npc: { ...prev.npc!, description: e.target.value } }
+                      : prev
+                  )
+                }
+                style={{ width: '100%', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>
+                Преимущества / черты
+              </label>
+              <textarea
+                rows={3}
+                value={npcEditing.npc.traits ?? ''}
+                onChange={(e) =>
+                  setNpcEditing((prev) =>
+                    prev.scenarioId
+                      ? { ...prev, npc: { ...prev.npc!, traits: e.target.value } }
+                      : prev
+                  )
+                }
+                style={{ width: '100%', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>
+                Способности / действия
+              </label>
+              <textarea
+                rows={4}
+                value={npcEditing.npc.actions ?? ''}
+                onChange={(e) =>
+                  setNpcEditing((prev) =>
+                    prev.scenarioId
+                      ? { ...prev, npc: { ...prev.npc!, actions: e.target.value } }
+                      : prev
+                  )
+                }
+                style={{ width: '100%', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() =>
+                  setNpcEditing({
+                    scenarioId: null,
+                    npc: null,
+                    isNew: true,
+                  })
+                }
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: '#6c757d',
+                  color: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!npcEditing.scenarioId || !npcEditing.npc?.name?.trim()) return;
+                  try {
+                    const scenarioId = npcEditing.scenarioId;
+                    const basePayload: UpsertScenarioNpcPayload = {
+                      name: npcEditing.npc.name!.trim(),
+                      type: npcEditing.npc.type ?? undefined,
+                      armorClass: npcEditing.npc.armorClass ?? null,
+                      armorClassText: npcEditing.npc.armorClassText ?? null,
+                      hpAverage: npcEditing.npc.hpAverage ?? null,
+                      hpText: npcEditing.npc.hpText ?? null,
+                      speed: npcEditing.npc.speed ?? null,
+                      strength: npcEditing.npc.strength ?? null,
+                      dexterity: npcEditing.npc.dexterity ?? null,
+                      constitution: npcEditing.npc.constitution ?? null,
+                      intelligence: npcEditing.npc.intelligence ?? null,
+                      wisdom: npcEditing.npc.wisdom ?? null,
+                      charisma: npcEditing.npc.charisma ?? null,
+                      skills: npcEditing.npc.skills ?? null,
+                      senses: npcEditing.npc.senses ?? null,
+                      languages: npcEditing.npc.languages ?? null,
+                      xp: npcEditing.npc.xp ?? null,
+                      challenge: npcEditing.npc.challenge ?? null,
+                      habitat: npcEditing.npc.habitat ?? null,
+                      traits: npcEditing.npc.traits ?? null,
+                      abilities: npcEditing.npc.abilities ?? null,
+                      actions: npcEditing.npc.actions ?? null,
+                      legendaryActions: npcEditing.npc.legendaryActions ?? null,
+                      description: npcEditing.npc.description ?? null,
+                      imageFileId: npcEditing.npc.imageFileId ?? null,
+                    };
+
+                    let saved: ScenarioNpc;
+                    if (npcEditing.isNew) {
+                      saved = await createScenarioNpc(scenarioId, basePayload);
+                      setNpcByScenario((prev) => ({
+                        ...prev,
+                        [scenarioId]: [...(prev[scenarioId] ?? []), saved],
+                      }));
+                    } else {
+                      saved = await updateScenarioNpc(scenarioId, npcEditing.npc.id!, basePayload);
+                      setNpcByScenario((prev) => ({
+                        ...prev,
+                        [scenarioId]: (prev[scenarioId] ?? []).map((n) =>
+                          n.id === saved.id ? saved : n
+                        ),
+                      }));
+                    }
+
+                    setNpcEditing({ scenarioId: null, npc: null, isNew: true });
+                  } catch (err: any) {
+                    setError(err.message || 'Ошибка сохранения NPC');
+                  }
+                }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: '#28a745',
+                  color: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                Сохранить
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
