@@ -26,7 +26,7 @@ const Header: React.FC = () => {
                 История игр
               </Link>
               <Link to="/locations" style={{ color: "#fff", textDecoration: "none" }}>
-                Локации
+                Сценарии
               </Link>
               <Link to="/settings" style={{ color: "#fff", textDecoration: "none" }}>
                 Настройки

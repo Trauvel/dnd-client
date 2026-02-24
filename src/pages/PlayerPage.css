@@ -211,6 +211,13 @@
   text-align: center;
 }
 
+.exp-level-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+}
+
 .exp-item {
   display: flex;
   align-items: center;
@@ -219,6 +226,16 @@
   padding: 20px;
   border-radius: 10px;
   border-left: 4px solid #2a5298;
+}
+
+.exp-item-readonly {
+  background: #e9ecef;
+}
+
+.exp-item-readonly .exp-value {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #2a5298;
 }
 
 .exp-item label {
@@ -256,7 +273,193 @@
 
 .inventory-item:hover {
   background: #e9ecef;
-  transform: translateX(5px);
+}
+
+.inventory-item.editable {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.inventory-item.editable:last-of-type {
+  border-bottom: none;
+}
+
+.inventory-item-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inventory-item-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.inventory-item-description {
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 48px;
+}
+
+.inventory-item-description:focus {
+  outline: none;
+  border-color: #2a5298;
+}
+
+.inventory-item-input:focus {
+  outline: none;
+  border-color: #2a5298;
+}
+
+.inventory-remove-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: #dc3545;
+  color: white;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.inventory-remove-btn:hover {
+  background: #c82333;
+}
+
+.inventory-add-btn {
+  margin-top: 10px;
+  padding: 10px 16px;
+  border: 2px dashed #2a5298;
+  border-radius: 8px;
+  background: transparent;
+  color: #2a5298;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inventory-add-btn:hover {
+  background: rgba(42, 82, 152, 0.08);
+}
+
+.character-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.character-textarea:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
+}
+
+.backstory-section,
+.appearance-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-item-full {
+  grid-column: 1 / -1;
+}
+
+.character-portrait-section h2,
+.backstory-section h2,
+.appearance-section h2 {
+  margin: 0 0 10px 0;
+}
+
+.portrait-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.portrait-preview {
+  width: 160px;
+  height: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid #e1e5e9;
+  background: #f8f9fa;
+}
+
+.character-portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portrait-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 14px;
+  text-align: center;
+  padding: 10px;
+}
+
+.portrait-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.portrait-upload-btn {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%);
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-block;
+  text-align: center;
+}
+
+.portrait-upload-btn:hover {
+  opacity: 0.95;
+}
+
+.portrait-clear-btn {
+  padding: 8px 14px;
+  border: 2px solid #dc3545;
+  border-radius: 8px;
+  background: transparent;
+  color: #dc3545;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.portrait-clear-btn:hover {
+  background: #dc3545;
+  color: white;
 }
 
 .player-sidebar {

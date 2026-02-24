@@ -4,6 +4,7 @@ import { getAuthHeader } from '../utils/auth';
 export interface RoomSettings {
   maxPlayers?: number;
   characterSelection: 'predefined' | 'in-room';
+  scenarioId?: string;
 }
 
 export interface RoomPlayer {
@@ -21,6 +22,7 @@ export interface GameRoom {
   masterId: string;
   maxPlayers?: number;
   characterSelection: 'predefined' | 'in-room';
+  scenarioId?: string;
   isPaused: boolean;
   isActive: boolean;
   players: RoomPlayer[];
@@ -31,6 +33,7 @@ export interface GameRoom {
 export interface CreateRoomRequest {
   maxPlayers?: number;
   characterSelection?: 'predefined' | 'in-room';
+  scenarioId?: string;
 }
 
 export interface CreateRoomResponse {
@@ -73,6 +76,7 @@ export async function createRoom(settings: CreateRoomRequest = {}): Promise<Crea
     body: JSON.stringify({
       maxPlayers: settings.maxPlayers,
       characterSelection: settings.characterSelection || 'predefined',
+      scenarioId: settings.scenarioId,
     }),
   });
 
@@ -126,6 +130,20 @@ export async function getRoomInfo(code: string): Promise<RoomInfoResponse> {
   }
 
   return response.json();
+}
+
+/**
+ * Проверить, существует ли комната на game-server (для фильтрации истории)
+ */
+export async function isRoomExists(code: string): Promise<boolean> {
+  try {
+    await getRoomInfo(code);
+    return true;
+  } catch (err: any) {
+    const msg = err?.message || '';
+    if (msg.includes('не найдена') || msg.includes('not found')) return false;
+    throw err;
+  }
 }
 
 /**

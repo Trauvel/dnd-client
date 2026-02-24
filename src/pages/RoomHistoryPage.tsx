@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getRoomHistory, RoomSnapshot } from '../api/rooms';
+import { getRoomHistory, RoomSnapshot, isRoomExists, deleteRoomSnapshot } from '../api/rooms';
 import { RoomHistoryCard } from '../components/Room/RoomHistoryCard';
-import { useSocket } from '../store/socketContext';
 
 const RoomHistoryPage: React.FC = () => {
   const [snapshots, setSnapshots] = useState<RoomSnapshot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { connect } = useSocket();
 
   useEffect(() => {
     loadHistory();
@@ -20,7 +18,26 @@ const RoomHistoryPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
       const response = await getRoomHistory();
-      setSnapshots(response.snapshots);
+      const list = response.snapshots;
+      const roomCodes = [...new Set(list.map((s) => s.roomCode))];
+      const invalidRooms: string[] = [];
+      for (const code of roomCodes) {
+        try {
+          const exists = await isRoomExists(code);
+          if (!exists) invalidRooms.push(code);
+        } catch {
+          // при ошибке проверки оставляем комнату в списке
+        }
+      }
+      const toDelete = list.filter((s) => invalidRooms.includes(s.roomCode));
+      for (const s of toDelete) {
+        try {
+          await deleteRoomSnapshot(s.id);
+        } catch {
+          // игнорируем ошибки удаления
+        }
+      }
+      setSnapshots(list.filter((s) => !invalidRooms.includes(s.roomCode)));
     } catch (err: any) {
       setError(err.message || 'Ошибка загрузки истории');
     } finally {
@@ -29,16 +46,25 @@ const RoomHistoryPage: React.FC = () => {
   };
 
   const handleRestore = (roomCode: string) => {
-    // Подключаемся к восстановленной комнате
-    connect(roomCode);
-    // Переходим на страницу игры
-    navigate('/');
+    navigate(`/room/${roomCode}`);
   };
 
-  const handleDelete = (saveId: string) => {
-    // Удаляем сохранение из списка
-    setSnapshots(snapshots.filter(s => s.id !== saveId));
+  const handleDelete = (saveIds: string[]) => {
+    setSnapshots((prev) => prev.filter((s) => !saveIds.includes(s.id)));
   };
+
+  const groupedByRoom = (() => {
+    const map = new Map<string, RoomSnapshot[]>();
+    for (const s of snapshots) {
+      const list = map.get(s.roomCode) ?? [];
+      list.push(s);
+      map.set(s.roomCode, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    return Array.from(map.entries()).map(([roomCode, list]) => ({ roomCode, snapshots: list }));
+  })();
 
   if (isLoading) {
     return (
@@ -105,14 +131,19 @@ const RoomHistoryPage: React.FC = () => {
         </div>
       ) : (
         <div>
-          {snapshots.map((snapshot) => (
-            <RoomHistoryCard
-              key={snapshot.id}
-              snapshot={snapshot}
-              onRestore={handleRestore}
-              onDelete={handleDelete}
-            />
-          ))}
+          {groupedByRoom.map(({ roomCode, snapshots: group }) => {
+            const latest = group[0];
+            const allSaveIds = group.map((s) => s.id);
+            return (
+              <RoomHistoryCard
+                key={roomCode}
+                snapshot={latest}
+                allSaveIds={allSaveIds}
+                onRestore={handleRestore}
+                onDelete={handleDelete}
+              />
+            );
+          })}
         </div>
       )}
     </div>

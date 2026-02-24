@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { getCharacters, updateCharacter, type Character } from '../api/characters';
+import { xpToLevel, getProficiencyBonus } from '../utils/dndLevel';
 import './PlayerPage.css';
 
 const PlayerPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [character, setCharacter] = useState<Character | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,10 +54,8 @@ const PlayerPage: React.FC = () => {
     setSaveMessage(null);
 
     try {
-      // Подготавливаем данные для обновления
       const updateData: any = {
         characterName: character.characterName,
-        level: character.level,
         experience: character.experience,
         hp: character.hp,
         maxHp: character.maxHp,
@@ -69,11 +67,19 @@ const PlayerPage: React.FC = () => {
         wisdom: character.wisdom,
         charisma: character.charisma,
         class: character.class,
+        classArchetype: character.classArchetype ?? undefined,
         race: character.race,
+        subrace: character.subrace ?? undefined,
+        weight: character.weight ?? undefined,
+        height: character.height ?? undefined,
         armorClass: character.armorClass,
         initiative: character.initiative,
         speed: character.speed,
-        inventory: character.inventory,
+        inventory: (character.inventory ?? []).filter((item) => (item.name ?? '').trim()),
+        backstory: character.backstory ?? undefined,
+        appearance: character.appearance ?? undefined,
+        imageUrl: character.imageUrl ?? undefined,
+        gold: character.gold ?? undefined,
       };
 
       const updated = await updateCharacter(id, updateData);
@@ -175,6 +181,44 @@ const PlayerPage: React.FC = () => {
       <div className="player-content">
         <div className="player-main-info">
           <div className="character-sheet">
+            <div className="character-portrait-section">
+              <h2>Портрет</h2>
+              <div className="portrait-row">
+                <div className="portrait-preview">
+                  {character.imageUrl ? (
+                    <img src={character.imageUrl} alt="Персонаж" className="character-portrait-img" />
+                  ) : (
+                    <div className="portrait-placeholder">Нет изображения</div>
+                  )}
+                </div>
+                <div className="portrait-actions">
+                  <label className="portrait-upload-btn">
+                    Загрузить изображение
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => updateCharacterStat('imageUrl', reader.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="portrait-clear-btn"
+                    onClick={() => updateCharacterStat('imageUrl', '')}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="basic-info">
               <h2>Основная информация</h2>
               <div className="info-grid">
@@ -203,14 +247,73 @@ const PlayerPage: React.FC = () => {
                   />
                 </div>
                 <div className="info-item">
-                  <label>Уровень:</label>
+                  <label>Архетип класса:</label>
                   <input
-                    type="number"
-                    value={character.level || 1}
-                    onChange={(e) => updateCharacterStat('level', parseInt(e.target.value) || 1)}
+                    type="text"
+                    value={character.classArchetype ?? ''}
+                    onChange={(e) => updateCharacterStat('classArchetype', e.target.value)}
+                    placeholder="например Вор"
+                  />
+                </div>
+                <div className="info-item">
+                  <label>Подраса:</label>
+                  <input
+                    type="text"
+                    value={character.subrace ?? ''}
+                    onChange={(e) => updateCharacterStat('subrace', e.target.value)}
+                    placeholder="например Дроу"
+                  />
+                </div>
+                <div className="info-item">
+                  <label>Вес:</label>
+                  <input
+                    type="text"
+                    value={character.weight ?? ''}
+                    onChange={(e) => updateCharacterStat('weight', e.target.value)}
+                    placeholder="55 кг"
+                  />
+                </div>
+                <div className="info-item">
+                  <label>Рост:</label>
+                  <input
+                    type="text"
+                    value={character.height ?? ''}
+                    onChange={(e) => updateCharacterStat('height', e.target.value)}
+                    placeholder="185 см"
+                  />
+                </div>
+                <div className="info-item info-item-full">
+                  <label>Золото (например 15 или 1к20):</label>
+                  <input
+                    type="text"
+                    value={character.gold ?? ''}
+                    onChange={(e) => updateCharacterStat('gold', e.target.value)}
+                    placeholder="15 или 1к20"
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="backstory-section">
+              <h2>Предыстория</h2>
+              <textarea
+                className="character-textarea"
+                value={character.backstory ?? ''}
+                onChange={(e) => updateCharacterStat('backstory', e.target.value)}
+                placeholder="Рассказ о прошлом персонажа..."
+                rows={4}
+              />
+            </div>
+
+            <div className="appearance-section">
+              <h2>Внешность</h2>
+              <textarea
+                className="character-textarea"
+                value={character.appearance ?? ''}
+                onChange={(e) => updateCharacterStat('appearance', e.target.value)}
+                placeholder="Описание внешности: рост, телосложение, приметы..."
+                rows={3}
+              />
             </div>
 
             <div className="combat-stats">
@@ -289,29 +392,80 @@ const PlayerPage: React.FC = () => {
             </div>
 
             <div className="experience-section">
-              <h2>Опыт</h2>
-              <div className="exp-item">
-                <label>Опыт:</label>
-                <input
-                  type="number"
-                  value={character.experience || 0}
-                  onChange={(e) => updateCharacterStat('experience', parseInt(e.target.value) || 0)}
-                />
+              <h2>Опыт и уровень</h2>
+              <div className="exp-level-row">
+                <div className="exp-item">
+                  <label>Опыт:</label>
+                  <input
+                    type="number"
+                    value={character.experience || 0}
+                    onChange={(e) => updateCharacterStat('experience', parseInt(e.target.value) || 0)}
+                    min={0}
+                  />
+                </div>
+                <div className="exp-item exp-item-readonly">
+                  <label>Уровень:</label>
+                  <span className="exp-value">{xpToLevel(character.experience ?? 0)}</span>
+                </div>
+                <div className="exp-item exp-item-readonly">
+                  <label>Бонус мастерства:</label>
+                  <span className="exp-value">+{getProficiencyBonus(xpToLevel(character.experience ?? 0))}</span>
+                </div>
               </div>
             </div>
 
             <div className="inventory-section">
               <h2>Инвентарь</h2>
               <div className="inventory-list">
-                {character.inventory && character.inventory.length > 0 ? (
-                  character.inventory.map((item, index) => (
-                    <div key={index} className="inventory-item">
-                      {item}
+                {(character.inventory ?? []).map((item, index) => (
+                  <div key={index} className="inventory-item editable">
+                    <div className="inventory-item-fields">
+                      <input
+                        type="text"
+                        value={item.name ?? ''}
+                        onChange={(e) => {
+                          const next = [...(character.inventory ?? [])];
+                          next[index] = { ...next[index], name: e.target.value };
+                          updateCharacterStat('inventory', next);
+                        }}
+                        className="inventory-item-input"
+                        placeholder="Название (оружие, инструменты...)"
+                      />
+                      <textarea
+                        value={item.description ?? ''}
+                        onChange={(e) => {
+                          const next = [...(character.inventory ?? [])];
+                          next[index] = { ...next[index], description: e.target.value };
+                          updateCharacterStat('inventory', next);
+                        }}
+                        className="inventory-item-description"
+                        placeholder="Описание, характеристики (попадание/урон, состав набора...)"
+                        rows={2}
+                      />
                     </div>
-                  ))
-                ) : (
-                  <div>Инвентарь пуст</div>
-                )}
+                    <button
+                      type="button"
+                      className="inventory-remove-btn"
+                      onClick={() => {
+                        const next = (character.inventory ?? []).filter((_, i) => i !== index);
+                        updateCharacterStat('inventory', next);
+                      }}
+                      title="Удалить"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="inventory-add-btn"
+                  onClick={() => {
+                    const next = [...(character.inventory ?? []), { name: '', description: '' }];
+                    updateCharacterStat('inventory', next);
+                  }}
+                >
+                  + Добавить предмет
+                </button>
               </div>
             </div>
           </div>

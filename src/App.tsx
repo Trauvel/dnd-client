@@ -33,6 +33,14 @@ const App: React.FC = () => {
                 }
               />
               <Route
+                path="/room/:roomCode"
+                element={
+                  <ProtectedRoute>
+                    <GamePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/locations"
                 element={
                   <ProtectedRoute>

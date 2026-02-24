@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoom, RoomSettings } from '../../api/rooms';
+import { getScenarios, type Scenario } from '../../api/scenarios';
 
 interface CreateRoomFormProps {
   onRoomCreated: (roomCode: string) => void;
@@ -11,6 +12,20 @@ export const CreateRoomForm: React.FC<CreateRoomFormProps> = ({ onRoomCreated, o
   const [characterSelection, setCharacterSelection] = useState<'predefined' | 'in-room'>('predefined');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [scenarioId, setScenarioId] = useState<string>('');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const list = await getScenarios();
+        setScenarios(list);
+      } catch (err) {
+        // молча игнорируем ошибку загрузки сценариев при создании комнаты
+      }
+    };
+    load();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +36,7 @@ export const CreateRoomForm: React.FC<CreateRoomFormProps> = ({ onRoomCreated, o
       const settings: RoomSettings = {
         maxPlayers: maxPlayers && maxPlayers > 0 ? maxPlayers : undefined,
         characterSelection,
+        scenarioId: scenarioId || undefined,
       };
 
       const response = await createRoom(settings);
@@ -54,6 +70,29 @@ export const CreateRoomForm: React.FC<CreateRoomFormProps> = ({ onRoomCreated, o
               borderRadius: '4px',
             }}
           />
+        </div>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', color: '#333' }}>
+            Сценарий (опционально):
+          </label>
+          <select
+            value={scenarioId}
+            onChange={(e) => setScenarioId(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+            }}
+          >
+            <option value="">Без сценария</option>
+            {scenarios.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div style={{ marginBottom: '15px' }}>

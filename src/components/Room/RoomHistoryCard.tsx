@@ -3,15 +3,19 @@ import { RoomSnapshot, restoreRoom, deleteRoomSnapshot, getRoomSnapshot } from '
 
 interface RoomHistoryCardProps {
   snapshot: RoomSnapshot;
+  /** Все id сохранений этой комнаты (для удаления группы). По умолчанию [snapshot.id] */
+  allSaveIds?: string[];
   onRestore: (roomCode: string) => void;
-  onDelete: (saveId: string) => void;
+  onDelete: (saveIds: string[]) => void;
 }
 
 export const RoomHistoryCard: React.FC<RoomHistoryCardProps> = ({
   snapshot,
+  allSaveIds,
   onRestore,
   onDelete,
 }) => {
+  const idsToDelete = allSaveIds ?? [snapshot.id];
   const [isRestoring, setIsRestoring] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,15 +45,18 @@ export const RoomHistoryCard: React.FC<RoomHistoryCardProps> = ({
   };
 
   const handleDelete = async () => {
-    if (!confirm('Вы уверены, что хотите удалить это сохранение?')) {
-      return;
-    }
+    const msg = idsToDelete.length > 1
+      ? `Удалить все ${idsToDelete.length} сохранения комнаты ${snapshot.roomCode}?`
+      : 'Вы уверены, что хотите удалить это сохранение?';
+    if (!confirm(msg)) return;
 
     try {
       setIsDeleting(true);
       setError(null);
-      await deleteRoomSnapshot(snapshot.id);
-      onDelete(snapshot.id);
+      for (const id of idsToDelete) {
+        await deleteRoomSnapshot(id);
+      }
+      onDelete(idsToDelete);
     } catch (err: any) {
       setError(err.message || 'Ошибка удаления сохранения');
     } finally {
@@ -103,6 +110,11 @@ export const RoomHistoryCard: React.FC<RoomHistoryCardProps> = ({
           </h3>
           <div style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>
             Дата сохранения: {formatDate(snapshot.createdAt)}
+            {idsToDelete.length > 1 && (
+              <span style={{ marginLeft: '8px', color: '#888' }}>
+                ({idsToDelete.length} сохранений)
+              </span>
+            )}
           </div>
           <div style={{ color: '#666', fontSize: '14px', marginBottom: '10px' }}>
             Игроков: {snapshot.players.length}

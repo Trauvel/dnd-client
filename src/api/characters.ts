@@ -1,6 +1,11 @@
 import { API_CONFIG } from '../config';
 import { getAuthHeader } from '../utils/auth';
 
+export interface InventoryItem {
+  name: string;
+  description?: string;
+}
+
 export interface Character {
   id: string;
   userId: string;
@@ -18,11 +23,19 @@ export interface Character {
   wisdom: number;
   charisma: number;
   class: string | null;
+  classArchetype: string | null;
   race: string | null;
+  subrace: string | null;
+  weight: string | null;
+  height: string | null;
   armorClass: number;
   initiative: number;
   speed: number;
-  inventory: string[];
+  inventory: InventoryItem[];
+  backstory?: string | null;
+  appearance?: string | null;
+  imageUrl?: string | null;
+  gold?: string | null;
   characterData?: any;
   createdAt: string;
   updatedAt: string;
@@ -46,11 +59,19 @@ export interface UpdateCharacterRequest {
   wisdom?: number;
   charisma?: number;
   class?: string;
+  classArchetype?: string;
   race?: string;
+  subrace?: string;
+  weight?: string;
+  height?: string;
   armorClass?: number;
   initiative?: number;
   speed?: number;
-  inventory?: string[];
+  inventory?: InventoryItem[];
+  backstory?: string;
+  appearance?: string;
+  imageUrl?: string;
+  gold?: string;
   characterData?: any;
 }
 
@@ -79,12 +100,73 @@ export async function getCharacters(): Promise<Character[]> {
   }
 
   const data = await response.json();
-  // Преобразуем inventory из JSON строки в массив
   return data.sessions.map((session: any) => ({
     ...session,
-    inventory: session.inventory ? JSON.parse(session.inventory) : [],
+    inventory: normalizeInventory(session.inventory),
     characterData: session.characterData ? JSON.parse(session.characterData) : undefined,
   }));
+}
+
+export interface CharacterViewResult {
+  character: Character;
+  canEdit: boolean;
+  hideInventory: boolean;
+}
+
+/**
+ * Получить персонажа для просмотра из комнаты (свой — всё; чужой — без инвентаря, только чтение; мастер — всё и редактирование)
+ */
+export async function getCharacterForView(
+  characterId: string,
+  roomCode: string
+): Promise<CharacterViewResult> {
+  const url = new URL(
+    `${API_CONFIG.WEBSITE_API_URL}/api/game-session/${characterId}/view`
+  );
+  url.searchParams.set('roomCode', roomCode);
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 403) throw new Error('Доступ запрещён');
+    if (response.status === 404) throw new Error('Персонаж не найден');
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка загрузки персонажа');
+  }
+
+  const data = await response.json();
+  const session = data.session;
+  const character: Character = {
+    ...session,
+    inventory: normalizeInventory(session.inventory),
+    characterData: session.characterData ? JSON.parse(session.characterData) : undefined,
+  };
+  return {
+    character,
+    canEdit: data.canEdit === true,
+    hideInventory: data.hideInventory === true,
+  };
+}
+
+function normalizeInventory(raw: string | undefined): InventoryItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item: any) =>
+      typeof item === 'string'
+        ? { name: item, description: '' }
+        : { name: item?.name ?? '', description: item?.description ?? '' }
+    );
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -114,7 +196,7 @@ export async function getActiveCharacter(): Promise<Character | null> {
   const session = data.session;
   return {
     ...session,
-    inventory: session.inventory ? JSON.parse(session.inventory) : [],
+    inventory: normalizeInventory(session.inventory),
     characterData: session.characterData ? JSON.parse(session.characterData) : undefined,
   };
 }
@@ -144,7 +226,7 @@ export async function createCharacter(data: CreateCharacterRequest): Promise<Cha
   const session = result.session;
   return {
     ...session,
-    inventory: session.inventory ? JSON.parse(session.inventory) : [],
+    inventory: normalizeInventory(session.inventory),
     characterData: session.characterData ? JSON.parse(session.characterData) : undefined,
   };
 }
@@ -183,7 +265,7 @@ export async function updateCharacter(
   const session = result.session;
   return {
     ...session,
-    inventory: session.inventory ? JSON.parse(session.inventory) : [],
+    inventory: normalizeInventory(session.inventory),
     characterData: session.characterData ? JSON.parse(session.characterData) : undefined,
   };
 }
@@ -241,5 +323,27 @@ export async function saveCharacterState(state: any): Promise<boolean> {
 
   const data = await response.json();
   return data.success;
+}
+
+/**
+ * Получить URL портрета персонажа по id сессии (для отображения в комнате)
+ */
+export async function getCharacterPortrait(sessionId: string): Promise<string | null> {
+  const response = await fetch(
+    `${API_CONFIG.WEBSITE_API_URL}/api/game-session/${encodeURIComponent(sessionId)}/portrait`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    }
+  );
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    return null;
+  }
+  const data = await response.json();
+  return data.imageUrl ?? null;
 }
 
