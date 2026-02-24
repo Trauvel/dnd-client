@@ -19,6 +19,7 @@ export interface CreateDraft {
   height: string;
   backstory: string;
   appearance: string;
+  imageUrl: string;
   experience: number;
   hp: number;
   maxHp: number;
@@ -45,6 +46,7 @@ const defaultDraft: CreateDraft = {
   height: '',
   backstory: '',
   appearance: '',
+  imageUrl: '',
   experience: 0,
   hp: 10,
   maxHp: 10,
@@ -110,6 +112,7 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
         height: draft.height || undefined,
         backstory: draft.backstory || undefined,
         appearance: draft.appearance || undefined,
+        imageUrl: draft.imageUrl || undefined,
         experience: draft.experience,
         hp: draft.hp,
         maxHp: draft.maxHp,
@@ -146,6 +149,25 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
       </div>
 
       <form id="create-sheet-form" onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 16 }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 14 }}>Портрет</h2>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ width: 120, height: 120, border: '1px solid #333', borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: '#f5f5f5' }}>
+              {draft.imageUrl ? (
+                <img src={draft.imageUrl} alt="Персонаж" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#666' }}>Нет изображения</div>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ padding: '6px 12px', background: '#0d6efd', color: '#fff', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}>
+                Загрузить
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = () => setDraft((p) => ({ ...p, imageUrl: reader.result as string })); reader.readAsDataURL(file); } }} />
+              </label>
+              <button type="button" onClick={() => setDraft((p) => ({ ...p, imageUrl: '' }))} style={{ padding: '6px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}>Удалить</button>
+            </div>
+          </div>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
           <div><label style={labelStyle}>Имя персонажа</label><br />{input('text', draft.characterName, (v) => setDraft((p) => ({ ...p, characterName: String(v) })), { placeholder: 'Обязательно' })}</div>
           <div><label style={labelStyle}>Класс и уровень</label><br /><span style={{ display: 'flex', gap: 4 }}>{input('text', draft.class, (v) => setDraft((p) => ({ ...p, ['class']: String(v) })))}<span style={{ ...sheetStyle, width: 40, textAlign: 'center', lineHeight: '28px' }}>{level}</span></span></div>
@@ -273,9 +295,12 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
             <div><label style={labelStyle}>Снаряжение</label><textarea value={sheetData.equipment ?? ''} onChange={(e) => updateSheet({ equipment: e.target.value })} rows={6} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
             <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Инвентарь</h3>
               {draft.inventory.map((item, index) => (
-                <div key={index} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-                  <input type="text" value={item.name ?? ''} onChange={(e) => { const next = [...draft.inventory]; next[index] = { ...next[index], name: e.target.value }; setDraft((p) => ({ ...p, inventory: next })); }} placeholder="Название" style={sheetStyle} />
-                  <button type="button" onClick={() => setDraft((p) => ({ ...p, inventory: p.inventory.filter((_, i) => i !== index) }))}>×</button>
+                <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #dee2e6', borderRadius: 4 }}>
+                  <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                    <input type="text" value={item.name ?? ''} onChange={(e) => { const next = [...draft.inventory]; next[index] = { ...next[index], name: e.target.value }; setDraft((p) => ({ ...p, inventory: next })); }} placeholder="Название" style={{ ...sheetStyle, flex: 1 }} />
+                    <button type="button" onClick={() => setDraft((p) => ({ ...p, inventory: p.inventory.filter((_, i) => i !== index) }))}>×</button>
+                  </div>
+                  <textarea value={item.description ?? ''} onChange={(e) => { const next = [...draft.inventory]; next[index] = { ...next[index], description: e.target.value }; setDraft((p) => ({ ...p, inventory: next })); }} placeholder="Описание" rows={2} style={{ ...sheetStyle, width: '100%', resize: 'vertical', marginTop: 4 }} />
                 </div>
               ))}
               <button type="button" onClick={() => setDraft((p) => ({ ...p, inventory: [...p.inventory, { name: '', description: '' }] }))}>+ Предмет</button>

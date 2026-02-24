@@ -139,6 +139,29 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
         {error && <div style={{ color: '#dc3545', marginTop: 8, fontSize: 14 }}>{error}</div>}
       </div>
 
+      {/* Портрет */}
+      <div className="character-portrait-section" style={{ marginBottom: 16 }}>
+        <h2 style={{ margin: '0 0 8px', fontSize: 14 }}>Портрет</h2>
+        <div className="portrait-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div className="portrait-preview" style={{ width: 120, height: 120, border: '1px solid #333', borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: '#f5f5f5' }}>
+            {character.imageUrl ? (
+              <img src={character.imageUrl} alt="Персонаж" className="character-portrait-img" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div className="portrait-placeholder" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#666' }}>Нет изображения</div>
+            )}
+          </div>
+          {canEdit && (
+            <div className="portrait-actions" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label className="portrait-upload-btn" style={{ padding: '6px 12px', background: '#0d6efd', color: '#fff', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}>
+                Загрузить
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = () => updateStat('imageUrl', reader.result as string); reader.readAsDataURL(file); } }} />
+              </label>
+              <button type="button" className="portrait-clear-btn" onClick={() => updateStat('imageUrl', '')} style={{ padding: '6px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}>Удалить</button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Шапка как на листе */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
         <div><label style={labelStyle}>Имя персонажа</label><br />{input('text', character.characterName || '', (v) => updateStat('characterName', v))}</div>
@@ -277,9 +300,12 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
           {!hideInventory && (
             <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Инвентарь (предметы)</h3>
               {(character.inventory ?? []).map((item, index) => (
-                <div key={index} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-                  <input type="text" value={item.name ?? ''} onChange={(e) => { const next = [...(character.inventory ?? [])]; next[index] = { ...next[index], name: e.target.value }; updateStat('inventory', next); }} disabled={!canEdit} placeholder="Название" style={sheetStyle} />
-                  {canEdit && <button type="button" onClick={() => updateStat('inventory', (character.inventory ?? []).filter((_, i) => i !== index))}>×</button>}
+                <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #dee2e6', borderRadius: 4 }}>
+                  <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                    <input type="text" value={item.name ?? ''} onChange={(e) => { const next = [...(character.inventory ?? [])]; next[index] = { ...next[index], name: e.target.value }; updateStat('inventory', next); }} disabled={!canEdit} placeholder="Название" style={{ ...sheetStyle, flex: 1 }} />
+                    {canEdit && <button type="button" onClick={() => updateStat('inventory', (character.inventory ?? []).filter((_, i) => i !== index))}>×</button>}
+                  </div>
+                  <textarea value={item.description ?? ''} onChange={(e) => { const next = [...(character.inventory ?? [])]; next[index] = { ...next[index], description: e.target.value }; updateStat('inventory', next); }} disabled={!canEdit} placeholder="Описание" rows={2} style={{ ...sheetStyle, width: '100%', resize: 'vertical', marginTop: 4 }} />
                 </div>
               ))}
               {canEdit && <button type="button" onClick={() => updateStat('inventory', [...(character.inventory ?? []), { name: '', description: '' }])}>+ Предмет</button>}
