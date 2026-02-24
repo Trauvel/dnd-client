@@ -1721,7 +1721,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                       hp: hpAverage,
                       maxHp: hpAverage,
                       speed: speedNumber,
-                      initiative: 0,
+                      dexterity: template.dexterity ?? 10,
                       isDead: false,
                     };
                   });
