@@ -2,11 +2,15 @@ import { API_CONFIG } from '../config';
 import { getAuthHeader } from '../utils/auth';
 import { absolutizeUrl } from './scenarios';
 
+/** 'enemy' = враг (можно добавить в бой), 'ally' = союзник/нейтральный */
+export type ScenarioNpcKind = 'enemy' | 'ally';
+
 export interface ScenarioNpc {
   id: string;
   scenarioId: string;
   name: string;
   type?: string | null;
+  npcKind?: ScenarioNpcKind | null;
   armorClass?: number | null;
   armorClassText?: string | null;
   hpAverage?: number | null;
@@ -29,6 +33,7 @@ export interface ScenarioNpc {
   actions?: string | null;
   legendaryActions?: string | null;
   description?: string | null;
+  notes?: string | null;
   imageUrl?: string | null;
   imageFileId?: string | null;
 }
@@ -36,6 +41,7 @@ export interface ScenarioNpc {
 export interface UpsertScenarioNpcPayload {
   name: string;
   type?: string;
+  npcKind?: ScenarioNpcKind | null;
   armorClass?: number | null;
   armorClassText?: string | null;
   hpAverage?: number | null;
@@ -58,6 +64,7 @@ export interface UpsertScenarioNpcPayload {
   actions?: string | null;
   legendaryActions?: string | null;
   description?: string | null;
+  notes?: string | null;
   imageFileId?: string | null;
 }
 

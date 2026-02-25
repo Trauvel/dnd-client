@@ -18,8 +18,15 @@ const GamePage: React.FC = () => {
   // Код комнаты из URL (fallback из pathname, если useParams ещё не обновился при навигации)
   const roomCodeFromUrl = urlRoomCode ?? (location.pathname.match(/^\/room\/([^/]+)$/)?.[1] ?? null);
 
-  // В комнате по URL — показываем лобби (после перезагрузки остаёмся в игре)
-  if (roomCodeFromUrl) {
+  // Если уже в комнате по сокету, но открыт меню — переходим в комнату по URL (хуки всегда вызываем до любых return)
+  useEffect(() => {
+    if (currentRoomCode && view === 'menu') {
+      navigate(`/room/${currentRoomCode}`, { replace: true });
+    }
+  }, [currentRoomCode, view, navigate]);
+
+  // В комнате по URL — показываем лобби (после перезагрузки остаёмся в игре). Пустой код не рендерим.
+  if (roomCodeFromUrl && roomCodeFromUrl.trim() !== '') {
     return (
       <RoomLobby
         roomCode={roomCodeFromUrl}
@@ -30,13 +37,6 @@ const GamePage: React.FC = () => {
       />
     );
   }
-
-  // Если уже в комнате по сокету, но открыт меню — переходим в комнату по URL
-  useEffect(() => {
-    if (currentRoomCode && view === 'menu') {
-      navigate(`/room/${currentRoomCode}`, { replace: true });
-    }
-  }, [currentRoomCode, view, navigate]);
 
   const handleRoomCreated = (code: string) => {
     navigate(`/room/${code}`);

@@ -10,11 +10,47 @@ export interface ScenarioFile {
   url: string;
 }
 
+/** Книга мастера */
+export interface ScenarioScriptLocation {
+  id: string;
+  title: string;
+  body: string;
+  notes?: string;
+  npcIds?: string[];
+  order?: number;
+}
+
+export interface ScenarioScriptSituation {
+  id: string;
+  title: string;
+  body: string;
+  /** id локации, к которой привязана ситуация (ветка «если игроки сделали X» в рамках этой локации) */
+  locationId?: string | null;
+  order?: number;
+}
+
+export interface ScenarioScriptBranch {
+  id: string;
+  fromType: 'location' | 'situation';
+  fromId: string;
+  toType: 'location' | 'situation';
+  toId: string;
+  label: string;
+}
+
+export interface ScenarioScriptData {
+  locations?: ScenarioScriptLocation[];
+  situations?: ScenarioScriptSituation[];
+  branches?: ScenarioScriptBranch[];
+  startLocationId?: string | null;
+}
+
 export interface Scenario {
   id: string;
   title: string;
   description?: string | null;
   mainFileUrl?: string | null;
+  scriptData?: ScenarioScriptData | null;
   attachments: ScenarioFile[];
   audios: ScenarioFile[];
   createdAt: string;
@@ -45,9 +81,52 @@ function normalizeScenario(raw: any): Scenario {
   return {
     ...raw,
     mainFileUrl,
+    scriptData: raw.scriptData ?? null,
     attachments,
     audios,
   } as Scenario;
+}
+
+export async function getScenarioScript(scenarioId: string): Promise<ScenarioScriptData> {
+  const response = await fetch(
+    `${API_CONFIG.WEBSITE_API_URL}/api/scenarios/${scenarioId}/script`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    }
+  );
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка загрузки сценария');
+  }
+  const data = await response.json();
+  return data.script || { locations: [], situations: [], branches: [], startLocationId: null };
+}
+
+export async function saveScenarioScript(
+  scenarioId: string,
+  script: ScenarioScriptData
+): Promise<Scenario> {
+  const response = await fetch(
+    `${API_CONFIG.WEBSITE_API_URL}/api/scenarios/${scenarioId}/script`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ script }),
+    }
+  );
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка сохранения сценария');
+  }
+  const data = await response.json();
+  return normalizeScenario(data.scenario);
 }
 
 export async function getScenarios(): Promise<Scenario[]> {

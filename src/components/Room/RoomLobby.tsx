@@ -9,6 +9,7 @@ import { getCharacterPortrait, getCharacterForView, type CharacterViewResult, ty
 import { CharacterSheetView } from '../Character/CharacterSheetView';
 import type { CombatState, NpcInstance } from '../../api/socket';
 import { getScenarioNpcsForView, type ScenarioNpc } from '../../api/scenarioNpcs';
+import { MasterBookPanel } from './MasterBookPanel';
 
 const DICE_SIDES = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100];
 
@@ -60,6 +61,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const roomAudioRef = useRef<HTMLAudioElement | null>(null);
   const roomAudioEndedHandlerRef = useRef<(() => void) | null>(null);
   const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [bookOpen, setBookOpen] = useState(false);
 
   const isMaster = room && user && room.masterId === user.id;
   const masterState = GameState?.master;
@@ -288,11 +290,12 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     };
   }, [roomCode, socket]);
 
-  // Загружаем данные сценария, если он есть у комнаты
+  // Загружаем данные сценария и список NPC сценария (для книги мастера), если есть комната с сценарием
   useEffect(() => {
     const loadScenario = async () => {
       if (!room?.scenarioId) {
         setScenario(null);
+        setScenarioNpcs([]);
         return;
       }
       try {
@@ -302,8 +305,12 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           found = await getScenarioById(room.scenarioId);
         }
         setScenario(found);
+        // Загружаем NPC сценария, чтобы в «Книге» отображались карточки по локациям
+        const npcList = await getScenarioNpcsForView(room.scenarioId);
+        setScenarioNpcs(npcList);
       } catch {
         setScenario(null);
+        setScenarioNpcs([]);
       }
     };
     loadScenario();
@@ -1110,6 +1117,23 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
               </h3>
               {isMaster && (
                 <div style={{ marginBottom: '10px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {(scenario?.scriptData?.locations?.length ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setBookOpen(true)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: '#6f42c1',
+                        color: '#fff',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Книга
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={async () => {
@@ -1857,9 +1881,18 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
             <h3 style={{ marginTop: 0, marginBottom: 8 }}>Добавить NPC из сценария</h3>
             {scenarioNpcsLoading && scenarioNpcs.length === 0 ? (
               <div style={{ fontSize: 14 }}>Загрузка NPC...</div>
-            ) : scenarioNpcs.length === 0 ? (
-              <div style={{ fontSize: 14 }}>В этом сценарии ещё нет NPC. Создай их на странице сценариев.</div>
-            ) : (
+            ) : (() => {
+              const enemyNpcs = scenarioNpcs.filter((n) => n.npcKind === 'enemy');
+              if (enemyNpcs.length === 0) {
+                return (
+                  <div style={{ fontSize: 14 }}>
+                    {scenarioNpcs.length === 0
+                      ? 'В этом сценарии ещё нет NPC. Создай их на странице сценариев.'
+                      : 'Нет NPC-врагов для боя. Укажи тип «Враг (можно добавить в бой)» у нужных NPC на странице сценариев — союзники и нейтральные сюда не попадают.'}
+                  </div>
+                );
+              }
+              return (
               <div
                 style={{
                   display: 'flex',
@@ -1868,7 +1901,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   marginBottom: 12,
                 }}
               >
-                {scenarioNpcs.map((npc) => {
+                {enemyNpcs.map((npc) => {
                   const selected = npc.id === selectedNpcTemplateId;
                   return (
                     <button
@@ -1937,7 +1970,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   );
                 })}
               </div>
-            )}
+            );
+            })()}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <span style={{ fontSize: 13 }}>Количество копий:</span>
               <input
@@ -1969,7 +2003,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                 onClick={() => {
                   if (!sendAction || !selectedNpcTemplateId || !room?.scenarioId) return;
                   const template = scenarioNpcs.find((n) => n.id === selectedNpcTemplateId);
-                  if (!template) return;
+                  if (!template || template.npcKind !== 'enemy') return;
                   const instances = Array.from({ length: npcSpawnCount }, (_, i) => {
                     const baseName = template.name || 'NPC';
                     const name = npcSpawnCount > 1 ? `${baseName} #${i + 1}` : baseName;
@@ -1996,14 +2030,14 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   setOverlayHidden(true);
                   setNpcModalOpen(false);
                 }}
-                disabled={!selectedNpcTemplateId}
+                disabled={!selectedNpcTemplateId || scenarioNpcs.find((n) => n.id === selectedNpcTemplateId)?.npcKind !== 'enemy'}
                 style={{
                   padding: '6px 12px',
                   borderRadius: 6,
                   border: 'none',
-                  background: selectedNpcTemplateId ? '#28a745' : '#adb5bd',
+                  background: selectedNpcTemplateId && scenarioNpcs.find((n) => n.id === selectedNpcTemplateId)?.npcKind === 'enemy' ? '#28a745' : '#adb5bd',
                   color: '#fff',
-                  cursor: selectedNpcTemplateId ? 'pointer' : 'not-allowed',
+                  cursor: selectedNpcTemplateId && scenarioNpcs.find((n) => n.id === selectedNpcTemplateId)?.npcKind === 'enemy' ? 'pointer' : 'not-allowed',
                 }}
               >
                 Создать NPC
@@ -2011,6 +2045,14 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {bookOpen && scenario?.scriptData && (
+        <MasterBookPanel
+          scriptData={scenario.scriptData}
+          scenarioNpcs={scenarioNpcs}
+          onClose={() => setBookOpen(false)}
+        />
       )}
     </div>
     </div>

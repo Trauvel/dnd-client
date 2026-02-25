@@ -16,6 +16,7 @@ import {
   type ScenarioNpc,
   type UpsertScenarioNpcPayload,
 } from '../api/scenarioNpcs';
+import { ScenarioScriptEditor } from '../components/ScenarioScriptEditor/ScenarioScriptEditor';
 
 const ScenariosPage: React.FC = () => {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -593,6 +594,7 @@ const ScenariosPage: React.FC = () => {
                         npc: {
                           name: '',
                           type: '',
+                          npcKind: 'ally',
                           hpText: '',
                           speed: '',
                           armorClass: undefined,
@@ -661,7 +663,15 @@ const ScenariosPage: React.FC = () => {
                             )}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600, fontSize: '14px' }}>{npc.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 600, fontSize: '14px' }}>{npc.name}</span>
+                              {npc.npcKind === 'enemy' && (
+                                <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#f8d7da', color: '#721c24' }}>Враг</span>
+                              )}
+                              {npc.npcKind === 'ally' && (
+                                <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#d4edda', color: '#155724' }}>Союзник</span>
+                              )}
+                            </div>
                             {npc.type && (
                               <div style={{ fontSize: '12px', color: '#555' }}>{npc.type}</div>
                             )}
@@ -757,6 +767,17 @@ const ScenariosPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
+
+                <ScenarioScriptEditor
+                  scenarioId={s.id}
+                  initialScript={s.scriptData}
+                  npcs={npcByScenario[s.id] ?? []}
+                  onScriptChange={(script) =>
+                    setScenarios((prev) =>
+                      prev.map((it) => (it.id === s.id ? { ...it, scriptData: script } : it))
+                    )
+                  }
+                />
 
                 <div style={{ marginTop: '8px' }}>
                   <label
@@ -915,7 +936,7 @@ const ScenariosPage: React.FC = () => {
                 </div>
               );
             })()}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 1.2fr', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Имя</label>
                 <input
@@ -948,6 +969,24 @@ const ScenariosPage: React.FC = () => {
                   placeholder='например: "Средний гуманоид, Нейтральный"'
                   style={{ width: '100%' }}
                 />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Роль (для боя)</label>
+                <select
+                  value={npcEditing.npc.npcKind ?? ''}
+                  onChange={(e) =>
+                    setNpcEditing((prev) =>
+                      prev.scenarioId
+                        ? { ...prev, npc: { ...prev.npc!, npcKind: (e.target.value === 'enemy' || e.target.value === 'ally' ? e.target.value : null) as 'enemy' | 'ally' | null } }
+                        : prev
+                    )
+                  }
+                  style={{ width: '100%' }}
+                >
+                  <option value="">— не указано —</option>
+                  <option value="enemy">Враг (можно добавить в бой)</option>
+                  <option value="ally">Союзник / нейтральный (не для боя)</option>
+                </select>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Местность</label>
@@ -1208,6 +1247,24 @@ const ScenariosPage: React.FC = () => {
                 style={{ width: '100%', resize: 'vertical' }}
               />
             </div>
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>
+                Заметки мастера (для книги мастера)
+              </label>
+              <textarea
+                rows={2}
+                value={npcEditing.npc.notes ?? ''}
+                onChange={(e) =>
+                  setNpcEditing((prev) =>
+                    prev.scenarioId
+                      ? { ...prev, npc: { ...prev.npc!, notes: e.target.value } }
+                      : prev
+                  )
+                }
+                placeholder="Заметки по этому NPC, подсказки для себя в игре"
+                style={{ width: '100%', resize: 'vertical' }}
+              />
+            </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
               <button
                 type="button"
@@ -1238,6 +1295,7 @@ const ScenariosPage: React.FC = () => {
                     const basePayload: UpsertScenarioNpcPayload = {
                       name: npcEditing.npc.name!.trim(),
                       type: npcEditing.npc.type ?? undefined,
+                      npcKind: npcEditing.npc.npcKind ?? null,
                       armorClass: npcEditing.npc.armorClass ?? null,
                       armorClassText: npcEditing.npc.armorClassText ?? null,
                       hpAverage: npcEditing.npc.hpAverage ?? null,
@@ -1260,6 +1318,7 @@ const ScenariosPage: React.FC = () => {
                       actions: npcEditing.npc.actions ?? null,
                       legendaryActions: npcEditing.npc.legendaryActions ?? null,
                       description: npcEditing.npc.description ?? null,
+                      notes: npcEditing.npc.notes ?? null,
                       imageFileId: npcEditing.npc.imageFileId ?? null,
                     };
 
