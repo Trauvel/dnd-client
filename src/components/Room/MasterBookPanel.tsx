@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { ScenarioScriptData, ScenarioScriptLocation, ScenarioScriptSituation, ScenarioScriptBranch } from '../../api/scenarios';
+import type { ScenarioScriptData, ScenarioScriptBranch } from '../../api/scenarios';
 import type { ScenarioNpc } from '../../api/scenarioNpcs';
 import { API_CONFIG } from '../../config';
 
