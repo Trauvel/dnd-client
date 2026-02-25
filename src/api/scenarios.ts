@@ -6,7 +6,7 @@ export interface ScenarioFile {
   fileName: string;
   displayName?: string | null;
   mimeType: string;
-  kind: 'main' | 'attachment';
+  kind: 'main' | 'attachment' | 'audio';
   url: string;
 }
 
@@ -16,6 +16,7 @@ export interface Scenario {
   description?: string | null;
   mainFileUrl?: string | null;
   attachments: ScenarioFile[];
+  audios: ScenarioFile[];
   createdAt: string;
   updatedAt: string;
 }
@@ -37,10 +38,15 @@ function normalizeScenario(raw: any): Scenario {
     ...f,
     url: absolutizeUrl(f.url) as string,
   }));
+  const audios = (raw.audios ?? []).map((f: any) => ({
+    ...f,
+    url: absolutizeUrl(f.url) as string,
+  }));
   return {
     ...raw,
     mainFileUrl,
     attachments,
+    audios,
   } as Scenario;
 }
 
@@ -106,6 +112,7 @@ export async function uploadScenarioFiles(params: {
   scenarioId: string;
   mainFile?: File | null;
   attachments?: File[];
+  audioFiles?: File[];
 }): Promise<Scenario> {
   const formData = new FormData();
   if (params.mainFile) {
@@ -113,6 +120,9 @@ export async function uploadScenarioFiles(params: {
   }
   for (const file of params.attachments ?? []) {
     formData.append('attachments', file);
+  }
+  for (const file of params.audioFiles ?? []) {
+    formData.append('audioFiles', file);
   }
 
   const response = await fetch(

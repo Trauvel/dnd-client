@@ -6,3 +6,18 @@ body {
 a {
     color: #ffffff;
 }
+
+@keyframes dice-roll-in {
+  0% {
+    transform: translateY(-100px) scale(0.2);
+    opacity: 0;
+  }
+  70% {
+    transform: translateY(8px) scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}

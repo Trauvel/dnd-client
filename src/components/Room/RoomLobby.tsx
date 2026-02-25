@@ -31,6 +31,13 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [diceSides, setDiceSides] = useState<number>(20);
   const [diceCount, setDiceCount] = useState<number>(1);
   const [diceLog, setDiceLog] = useState<Array<{ username: string; formula: string; result: number[]; total: number }>>([]);
+  const [diceRollOverlay, setDiceRollOverlay] = useState<{
+    username: string;
+    formula: string;
+    result: number[];
+    total: number;
+  } | null>(null);
+  const diceOverlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [characterSheetView, setCharacterSheetView] = useState<CharacterViewResult | null>(null);
   const [characterSheetLoading, setCharacterSheetLoading] = useState(false);
   const [characterSheetError, setCharacterSheetError] = useState<string | null>(null);
@@ -47,6 +54,12 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [hoveredNpcId, setHoveredNpcId] = useState<string | null>(null);
   const [npcTooltipRect, setNpcTooltipRect] = useState<DOMRect | null>(null);
   const [npcDetail, setNpcDetail] = useState<ScenarioNpc | null>(null);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [audioLoop, setAudioLoop] = useState(false);
+  const roomAudioRefs = useRef<Record<string, HTMLAudioElement>>({});
+  const roomAudioRef = useRef<HTMLAudioElement | null>(null);
+  const roomAudioEndedHandlerRef = useRef<(() => void) | null>(null);
+  const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const isMaster = room && user && room.masterId === user.id;
   const masterState = GameState?.master;
@@ -195,11 +208,71 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
 
     const handleDiceResult = (data: { username: string; formula: string; result: number[]; total: number }) => {
       setDiceLog((prev) => [...prev.slice(-49), data]);
+      if (diceOverlayTimeoutRef.current) clearTimeout(diceOverlayTimeoutRef.current);
+      setDiceRollOverlay(data);
+      diceOverlayTimeoutRef.current = setTimeout(() => {
+        setDiceRollOverlay(null);
+        diceOverlayTimeoutRef.current = null;
+      }, 2500);
     };
 
     socket.on('dice:result', handleDiceResult);
 
+    const handleAudioPlay = (data: { url: string; loop: boolean; id: string }) => {
+      let el = roomAudioRef.current;
+      if (!el) {
+        const fallback = fallbackAudioRef.current;
+        if (fallback) {
+          fallback.pause();
+          fallback.src = '';
+        }
+        fallbackAudioRef.current = new Audio(data.url);
+        el = fallbackAudioRef.current;
+      } else {
+        if (fallbackAudioRef.current) {
+          fallbackAudioRef.current.pause();
+          fallbackAudioRef.current = null;
+        }
+        if (roomAudioEndedHandlerRef.current) {
+          el.removeEventListener('ended', roomAudioEndedHandlerRef.current);
+        }
+      }
+      el.src = data.url;
+      el.loop = data.loop;
+      el.currentTime = 0;
+      roomAudioEndedHandlerRef.current = () => {
+        if (!el.loop) setPlayingAudioId(null);
+      };
+      el.addEventListener('ended', roomAudioEndedHandlerRef.current);
+      setPlayingAudioId(data.id || null);
+      setAudioLoop(data.loop);
+      const playWhenReady = () => {
+        el.play().catch(() => {});
+      };
+      if (el.readyState >= 2) {
+        playWhenReady();
+      } else {
+        el.addEventListener('canplaythrough', playWhenReady, { once: true });
+      }
+    };
+    const handleAudioStop = () => {
+      const el = roomAudioRef.current;
+      if (el) {
+        if (roomAudioEndedHandlerRef.current) el.removeEventListener('ended', roomAudioEndedHandlerRef.current);
+        el.pause();
+      }
+      if (fallbackAudioRef.current) {
+        fallbackAudioRef.current.pause();
+        fallbackAudioRef.current.src = '';
+        fallbackAudioRef.current = null;
+      }
+      setPlayingAudioId(null);
+    };
+    socket.on('audio:play', handleAudioPlay);
+    socket.on('audio:stop', handleAudioStop);
+
     return () => {
+      if (diceOverlayTimeoutRef.current) clearTimeout(diceOverlayTimeoutRef.current);
       socket.off('dice:result', handleDiceResult);
       socket.off('room:joined', handleRoomJoined);
       socket.off('room:player-joined', handlePlayerJoined);
@@ -210,6 +283,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
       socket.off('room:closed', handleRoomClosed);
       socket.off('room:reopened', handleRoomReopened);
       socket.off('scenario:update', handleScenarioUpdate);
+      socket.off('audio:play', handleAudioPlay);
+      socket.off('audio:stop', handleAudioStop);
     };
   }, [roomCode, socket]);
 
@@ -233,6 +308,30 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     };
     loadScenario();
   }, [room?.scenarioId]);
+
+  // Предзагрузка аудио сценария, чтобы при нажатии «Играть» звук шёл сразу у всех
+  const scenarioAudioIdsKey = useMemo(
+    () => (scenario?.audios ?? []).map((a) => a.id).sort().join(','),
+    [scenario?.id, scenario?.audios]
+  );
+  useEffect(() => {
+    const audios = scenario?.audios ?? [];
+    if (audios.length === 0) {
+      roomAudioRefs.current = {};
+      return;
+    }
+    const next: Record<string, HTMLAudioElement> = {};
+    audios.forEach((a) => {
+      const el = new Audio(a.url);
+      el.preload = 'auto';
+      next[a.id] = el;
+    });
+    roomAudioRefs.current = next;
+    return () => {
+      Object.values(roomAudioRefs.current).forEach((el) => el.pause());
+      roomAudioRefs.current = {};
+    };
+  }, [scenarioAudioIdsKey, scenario?.audios]);
 
   const portraitCharacterIdsKey = useMemo(
     () =>
@@ -544,6 +643,83 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
         </div>
       )}
 
+      {diceRollOverlay &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(0,0,0,0.6)',
+            }}
+            onClick={() => {
+              setDiceRollOverlay(null);
+              if (diceOverlayTimeoutRef.current) {
+                clearTimeout(diceOverlayTimeoutRef.current);
+                diceOverlayTimeoutRef.current = null;
+              }
+            }}
+          >
+            <div
+              style={{
+                background: '#2d2d2d',
+                borderRadius: 16,
+                padding: '24px 32px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 16,
+                minWidth: 200,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ fontSize: 14, color: '#aaa' }}>
+                {diceRollOverlay.username} · {diceRollOverlay.formula}
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  justifyContent: 'center',
+                }}
+              >
+                {diceRollOverlay.result.map((value, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 10,
+                      background: 'linear-gradient(145deg, #fff 0%, #e8e8e8 100%)',
+                      color: '#1a1a1a',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 22,
+                      fontWeight: 700,
+                      boxShadow: '0 4px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.8)',
+                      animation: 'dice-roll-in 0.5s ease-out forwards',
+                      animationDelay: `${i * 0.08}s`,
+                      opacity: 0,
+                    }}
+                  >
+                    {value}
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>
+                Сумма: {diceRollOverlay.total}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
       {/* Основная область: левая панель — кубики, центр — показ вложения, правая — вложения сценария */}
       <main
         style={{
@@ -553,6 +729,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           overflow: 'hidden',
         }}
       >
+        {/* Скрытый аудио для воспроизведения треков комнаты — всегда в DOM, чтобы ref был при первом audio:play */}
+        <audio ref={roomAudioRef} preload="auto" style={{ position: 'absolute', left: -9999, width: 0, height: 0 }} />
         {/* Левая панель — кубики */}
         <aside
           style={{
@@ -1092,6 +1270,93 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   </div>
                 );
               })()}
+              {(scenario?.audios?.length ?? 0) > 0 && (
+                <>
+                  <h3 style={{ color: '#333', marginTop: '16px', marginBottom: '8px', fontSize: '15px' }}>
+                    Аудио
+                  </h3>
+                  {isMaster ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {(scenario?.audios ?? []).map((a) => {
+                        const name = a.displayName ?? a.fileName;
+                        const isPlaying = playingAudioId === a.id;
+                        return (
+                          <div
+                            key={a.id}
+                            style={{
+                              borderRadius: '6px',
+                              border: '1px solid #dee2e6',
+                              padding: '8px',
+                              background: isPlaying ? '#e7f3ff' : '#f8f9fa',
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                marginBottom: '6px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                color: 'black',
+                              }}
+                              title={name}
+                            >
+                              {name}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isPlaying) {
+                                    socket?.emit('audio:stop');
+                                  } else {
+                                    socket?.emit('audio:play', { url: a.url, loop: audioLoop, id: a.id });
+                                  }
+                                }}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '4px',
+                                  border: 'none',
+                                  background: isPlaying ? '#6c757d' : '#28a745',
+                                  color: '#fff',
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {isPlaying ? 'Стоп' : 'Играть'}
+                              </button>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', cursor: 'pointer', color: 'black' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={audioLoop}
+                                  onChange={(e) => setAudioLoop(e.target.checked)}
+                                />
+                                Зациклить
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : playingAudioId ? (
+                    <div
+                      style={{
+                        borderRadius: '6px',
+                        border: '1px solid #dee2e6',
+                        padding: '8px',
+                        background: '#e7f3ff',
+                        fontSize: '12px',
+                        color: '#333',
+                      }}
+                    >
+                      Играет: {(scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.displayName ?? (scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.fileName ?? '—'}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '12px', color: '#666' }}>Мастер включит аудио</div>
+                  )}
+                </>
+              )}
             </>
           ) : (
             <div style={{ color: '#999', fontSize: '13px' }}>Сценарий не выбран</div>

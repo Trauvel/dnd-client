@@ -427,6 +427,145 @@ const ScenariosPage: React.FC = () => {
                   </div>
                 )}
 
+                {(s.audios?.length ?? 0) > 0 && (
+                  <div style={{ marginTop: '12px' }}>
+                    <strong>Аудио:</strong>
+                    <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {s.audios.map((f) => {
+                        const name = f.displayName ?? f.fileName;
+                        return (
+                          <div
+                            key={f.id}
+                            style={{
+                              borderRadius: '6px',
+                              border: '1px solid #ddd',
+                              padding: '8px',
+                              background: '#f8f9fa',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px',
+                            }}
+                          >
+                            <div style={{ fontSize: '12px', fontWeight: 600 }}>{name}</div>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <input
+                                type="text"
+                                value={name}
+                                onChange={(e) =>
+                                  setScenarios((prev) =>
+                                    prev.map((it) =>
+                                      it.id === s.id
+                                        ? {
+                                            ...it,
+                                            audios: (it.audios ?? []).map((af) =>
+                                              af.id === f.id ? { ...af, displayName: e.target.value } : af
+                                            ),
+                                          }
+                                        : it
+                                    )
+                                  )
+                                }
+                                style={{
+                                  flex: 1,
+                                  minWidth: '100px',
+                                  padding: '4px 6px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #ccc',
+                                  fontSize: '12px',
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const updated = await renameScenarioFile(s.id, f.id, name);
+                                    setScenarios((prev) =>
+                                      prev.map((it) => (it.id === s.id ? updated : it))
+                                    );
+                                  } catch (err: any) {
+                                    setError(err.message || 'Ошибка переименования');
+                                  }
+                                }}
+                                style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  border: 'none',
+                                  background: '#007bff',
+                                  color: '#fff',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Имя
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const updated = await deleteScenarioFile(s.id, f.id);
+                                    setScenarios((prev) =>
+                                      prev.map((it) => (it.id === s.id ? updated : it))
+                                    );
+                                  } catch (err: any) {
+                                    setError(err.message || 'Ошибка удаления');
+                                  }
+                                }}
+                                style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  border: 'none',
+                                  background: '#dc3545',
+                                  color: '#fff',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div style={{ marginTop: '8px' }}>
+                  <label
+                    style={{
+                      display: 'inline-block',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      background: '#e9ecef',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {s.audios?.length ? 'Добавить аудио' : 'Загрузить аудио'}
+                    <input
+                      type="file"
+                      multiple
+                      accept="audio/*"
+                      style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const files = e.target.files ? Array.from(e.target.files) : [];
+                        if (!files.length) return;
+                        try {
+                          const updated = await uploadScenarioFiles({
+                            scenarioId: s.id,
+                            audioFiles: files,
+                          });
+                          setScenarios((prev) =>
+                            prev.map((it) => (it.id === s.id ? updated : it))
+                          );
+                          e.target.value = '';
+                        } catch (err: any) {
+                          setError(err.message || 'Ошибка загрузки аудио');
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+
                 <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #eee' }}>
                   <h4 style={{ margin: '0 0 8px', fontSize: '14px' }}>NPC этого сценария</h4>
                   <button
