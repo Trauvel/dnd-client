@@ -28,11 +28,8 @@ const Header: React.FC = () => {
               <Link to="/locations" style={{ color: "#fff", textDecoration: "none" }}>
                 Сценарии
               </Link>
-              <Link to="/settings" style={{ color: "#fff", textDecoration: "none" }}>
-                Настройки
-              </Link>
-              <Link to="/dev" style={{ color: "#fff", textDecoration: "none" }}>
-                Dev
+              <Link to="/notes-book" style={{ color: "#fff", textDecoration: "none" }}>
+                Книга заметок
               </Link>
             </>
           ) : (

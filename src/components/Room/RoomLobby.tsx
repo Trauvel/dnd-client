@@ -10,6 +10,7 @@ import { CharacterSheetView } from '../Character/CharacterSheetView';
 import type { CombatState, NpcInstance } from '../../api/socket';
 import { getScenarioNpcsForView, type ScenarioNpc } from '../../api/scenarioNpcs';
 import { MasterBookPanel } from './MasterBookPanel';
+import { NotesBookViewPanel } from './NotesBookViewPanel';
 
 const DICE_SIDES = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100];
 
@@ -62,6 +63,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const roomAudioEndedHandlerRef = useRef<(() => void) | null>(null);
   const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const [bookOpen, setBookOpen] = useState(false);
+  const [playerNotesBookOpen, setPlayerNotesBookOpen] = useState(false);
 
   const isMaster = room && user && room.masterId === user.id;
   const masterState = GameState?.master;
@@ -1117,23 +1119,21 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
               </h3>
               {isMaster && (
                 <div style={{ marginBottom: '10px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  {(scenario?.scriptData?.locations?.length ?? 0) > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setBookOpen(true)}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: 6,
-                        border: 'none',
-                        background: '#6f42c1',
-                        color: '#fff',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Книга
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setBookOpen(true)}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#6f42c1',
+                      color: '#fff',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Книга
+                  </button>
                   <button
                     type="button"
                     onClick={async () => {
@@ -1158,6 +1158,25 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                       Шаблонов NPC: {scenarioNpcs.length}
                     </span>
                   )}
+                </div>
+              )}
+              {!isMaster && (
+                <div style={{ marginBottom: '10px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPlayerNotesBookOpen(true)}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#6f42c1',
+                      color: '#fff',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Книга
+                  </button>
                 </div>
               )}
               {!scenario ? (
@@ -2047,12 +2066,16 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
         </div>
       )}
 
-      {bookOpen && scenario?.scriptData && (
+      {bookOpen && (
         <MasterBookPanel
-          scriptData={scenario.scriptData}
-          scenarioNpcs={scenarioNpcs}
+          scriptData={scenario?.scriptData ?? null}
+          scenarioNpcs={scenarioNpcs ?? []}
           onClose={() => setBookOpen(false)}
         />
+      )}
+
+      {playerNotesBookOpen && (
+        <NotesBookViewPanel onClose={() => setPlayerNotesBookOpen(false)} />
       )}
     </div>
     </div>

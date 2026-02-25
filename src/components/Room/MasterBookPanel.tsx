@@ -1,10 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import type { ScenarioScriptData, ScenarioScriptBranch } from '../../api/scenarios';
 import type { ScenarioNpc } from '../../api/scenarioNpcs';
+import {
+  getMasterBook,
+  updateMasterBook,
+  findSectionById,
+  updateSectionInTree,
+  removeSectionFromTree,
+  addSectionInTree,
+  type MasterBookData,
+  type MasterBookSection,
+} from '../../api/masterBook';
 import { API_CONFIG } from '../../config';
+import { DraggableWindow } from './DraggableWindow';
+
+function generateId(): string {
+  return `mb-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 interface MasterBookPanelProps {
-  scriptData: ScenarioScriptData;
+  scriptData: ScenarioScriptData | null;
   scenarioNpcs: ScenarioNpc[];
   onClose: () => void;
 }
@@ -31,30 +46,95 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
   scenarioNpcs,
   onClose,
 }) => {
-  const locations = scriptData.locations ?? [];
-  const situations = scriptData.situations ?? [];
-  const branches = scriptData.branches ?? [];
-  const startId = scriptData.startLocationId ?? locations[0]?.id ?? null;
+  const hasScenario = scriptData && (scriptData.locations?.length ?? 0) > 0;
+  const locations = scriptData?.locations ?? [];
+  const situations = scriptData?.situations ?? [];
+  const branches = scriptData?.branches ?? [];
+  const startId = scriptData?.startLocationId ?? locations[0]?.id ?? null;
 
   const [currentType, setCurrentType] = useState<'location' | 'situation'>('location');
   const [currentId, setCurrentId] = useState<string | null>(startId);
   const [npcOverlay, setNpcOverlay] = useState<ScenarioNpc | null>(null);
   const [notesCollapsed, setNotesCollapsed] = useState(false);
+  const [notesBookData, setNotesBookData] = useState<MasterBookData | null>(null);
+  const [selectedNotesSectionId, setSelectedNotesSectionId] = useState<string | null>(null);
+  const [notesSaving, setNotesSaving] = useState(false);
 
   useEffect(() => {
-    if (startId && !currentId) {
+    if (hasScenario && startId && !currentId && !selectedNotesSectionId) {
       setCurrentId(startId);
       setCurrentType('location');
     }
-  }, [startId, currentId]);
+  }, [hasScenario, startId, currentId, selectedNotesSectionId]);
+
+  useEffect(() => {
+    getMasterBook()
+      .then((data) => setNotesBookData(data))
+      .catch(() => setNotesBookData({ sections: [] }));
+  }, []);
+
+  const saveNotesBook = async () => {
+    if (!notesBookData) return;
+    setNotesSaving(true);
+    try {
+      const updated = await updateMasterBook(notesBookData);
+      setNotesBookData(updated);
+    } finally {
+      setNotesSaving(false);
+    }
+  };
+
+  const updateNotesSection = (id: string, patch: Partial<Pick<MasterBookSection, 'title' | 'body'>>) => {
+    if (!notesBookData) return;
+    setNotesBookData({ sections: updateSectionInTree(notesBookData.sections, id, patch) });
+  };
+
+  const addNotesSection = (parentId?: string | null) => {
+    if (!notesBookData) return;
+    const newSection: MasterBookSection = {
+      id: generateId(),
+      title: 'Новая заметка',
+      body: '',
+      children: [],
+    };
+    setNotesBookData({ sections: addSectionInTree(notesBookData.sections, newSection, parentId ?? null) });
+    setSelectedNotesSectionId(newSection.id);
+  };
+
+  const removeNotesSection = (id: string) => {
+    if (!notesBookData) return;
+    const next = removeSectionFromTree(notesBookData.sections, id);
+    setNotesBookData({ sections: next });
+    if (selectedNotesSectionId === id) setSelectedNotesSectionId(next[0]?.id ?? null);
+  };
 
   const currentLocation = currentType === 'location' ? locations.find((l) => l.id === currentId) : null;
   const currentSituation = currentType === 'situation' ? situations.find((s) => s.id === currentId) : null;
-  const title = currentLocation?.title ?? currentSituation?.title ?? '—';
-  const body = currentLocation?.body ?? currentSituation?.body ?? '';
-  const locationNotes = currentLocation?.notes;
-  const npcIds = currentLocation?.npcIds ?? [];
+  const selectedNotesSection =
+    selectedNotesSectionId && notesBookData
+      ? findSectionById(notesBookData.sections, selectedNotesSectionId)
+      : null;
+  const title = selectedNotesSection
+    ? selectedNotesSection.title
+    : (currentLocation?.title ?? currentSituation?.title ?? '—');
+  const body = selectedNotesSection
+    ? selectedNotesSection.body
+    : (currentLocation?.body ?? currentSituation?.body ?? '');
+  const locationNotes = selectedNotesSection ? undefined : currentLocation?.notes;
+  const npcIds = selectedNotesSection ? [] : (currentLocation?.npcIds ?? []);
   const npcsHere = scenarioNpcs.filter((n) => npcIds.includes(n.id));
+
+  const handleSelectScenario = (type: 'location' | 'situation', id: string) => {
+    setSelectedNotesSectionId(null);
+    setCurrentType(type);
+    setCurrentId(id);
+    setNpcOverlay(null);
+  };
+
+  const handleSelectNotesSection = (sectionId: string) => {
+    setSelectedNotesSectionId(sectionId);
+    setNpcOverlay(null);
+  };
 
   const outBranches = branches.filter(
     (b) => b.fromType === currentType && b.fromId === currentId
@@ -91,45 +171,105 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
       : situations.find((s) => s.id === b.toId)?.title ?? '?';
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9998,
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+    <>
+    <DraggableWindow
+      title="Книга мастера"
+      onClose={onClose}
+      width={960}
+      maxWidth={960}
+      maxHeight="90vh"
     >
-      <div
-        style={{
-          background: '#fff',
-          color: '#333',
-          borderRadius: 12,
-          maxWidth: 960,
-          width: '100%',
-          maxHeight: '90vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #dee2e6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: 18 }}>Книга мастера</h3>
-          <button type="button" onClick={onClose} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#6c757d', color: '#fff', cursor: 'pointer', fontSize: 13 }}>
-            Закрыть
-          </button>
-        </div>
-
         <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {/* Левая колонка — быстрые переходы */}
           <aside style={sideCol}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>Локации и ситуации</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>Книга заметок</div>
+            {!notesBookData ? (
+              <div style={{ fontSize: 12, color: '#999' }}>Загрузка…</div>
+            ) : notesBookData.sections.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>Разделов пока нет</div>
+            ) : (
+              (() => {
+                function renderNotesTree(sections: MasterBookSection[], depth: number) {
+                  return sections.map((sec) => (
+                    <div key={sec.id} style={{ marginBottom: 2 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          paddingLeft: depth * 10,
+                          borderRadius: 6,
+                          background: selectedNotesSectionId === sec.id ? '#e7f1ff' : 'transparent',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSelectNotesSection(sec.id)}
+                          style={{
+                            flex: 1,
+                            textAlign: 'left',
+                            padding: '6px 8px',
+                            border: 'none',
+                            borderRadius: 6,
+                            background: 'none',
+                            color: selectedNotesSectionId === sec.id ? '#0d6efd' : '#333',
+                            fontWeight: selectedNotesSectionId === sec.id ? 600 : 400,
+                            fontSize: depth === 0 ? 13 : 12,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {sec.title || '—'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); addNotesSection(sec.id); }}
+                          title="Добавить дочернюю"
+                          style={{ padding: '2px 6px', border: 'none', background: 'none', cursor: 'pointer', color: '#0d6efd', fontSize: 14 }}
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeNotesSection(sec.id)}
+                          title="Удалить"
+                          style={{ padding: '2px 6px', border: 'none', background: 'none', cursor: 'pointer', color: '#999', fontSize: 14 }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {(sec.children?.length ?? 0) > 0 && <div style={{ marginTop: 2 }}>{renderNotesTree(sec.children!, depth + 1)}</div>}
+                    </div>
+                  ));
+                }
+                return renderNotesTree(notesBookData.sections, 0);
+              })()
+            )}
+            {notesBookData && (
+              <button
+                type="button"
+                onClick={() => addNotesSection(null)}
+                style={{
+                  marginTop: 8,
+                  padding: '6px 10px',
+                  border: '1px dashed #adb5bd',
+                  borderRadius: 6,
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  color: '#495057',
+                }}
+              >
+                + Новый раздел
+              </button>
+            )}
+            {hasScenario && (
+              <>
+                <div style={{ marginTop: 12, marginBottom: 12, borderTop: '1px solid #dee2e6' }} />
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>Локации и ситуации</div>
+              </>
+            )}
+            {hasScenario && (
+              <>
             {locations.length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Нет</div>}
             {locations.map((loc) => {
               const isLocActive = currentType === 'location' && currentId === loc.id;
@@ -138,7 +278,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                 <div key={loc.id} style={{ marginBottom: 8 }}>
                   <button
                     type="button"
-                    onClick={() => { setCurrentType('location'); setCurrentId(loc.id); setNpcOverlay(null); }}
+                    onClick={() => handleSelectScenario('location', loc.id)}
                     style={{
                       display: 'block',
                       width: '100%',
@@ -163,7 +303,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                           <button
                             key={sit.id}
                             type="button"
-                            onClick={() => { setCurrentType('situation'); setCurrentId(sit.id); setNpcOverlay(null); }}
+                            onClick={() => handleSelectScenario('situation', sit.id)}
                             style={{
                               display: 'block',
                               width: '100%',
@@ -197,7 +337,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                     <button
                       key={sit.id}
                       type="button"
-                      onClick={() => { setCurrentType('situation'); setCurrentId(sit.id); setNpcOverlay(null); }}
+                      onClick={() => handleSelectScenario('situation', sit.id)}
                       style={{
                         display: 'block',
                         width: '100%',
@@ -266,13 +406,51 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                 {branchFromTitle(b)} → <strong>{b.label}</strong>
               </button>
             ))}
+              </>
+            )}
           </aside>
 
-          {/* Центр — текст текущей локации/ситуации */}
+          {/* Центр — текст текущей локации/ситуации или редактирование заметки */}
           <main style={{ flex: 1, overflowY: 'auto', padding: 16, minWidth: 0 }}>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 12, padding: 8, background: '#f8f9fa', borderRadius: 8 }}>
-              <strong>Как пользоваться:</strong> выбери элемент слева или нажми переход справа. NPC — нажми на имя (слева или справа), откроется карточка.
-            </div>
+            {selectedNotesSection ? (
+              <>
+                <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>Редактирование раздела книги заметок</div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4 }}>Название</label>
+                  <input
+                    type="text"
+                    value={selectedNotesSection.title}
+                    onChange={(e) => updateNotesSection(selectedNotesSection.id, { title: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', fontSize: 16, border: '1px solid #dee2e6', borderRadius: 8, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4 }}>Содержимое</label>
+                  <textarea
+                    value={selectedNotesSection.body}
+                    onChange={(e) => updateNotesSection(selectedNotesSection.id, { body: e.target.value })}
+                    style={{ width: '100%', minHeight: 200, padding: 10, fontSize: 14, border: '1px solid #dee2e6', borderRadius: 8, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={saveNotesBook}
+                  disabled={notesSaving}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#0d6efd', color: '#fff', cursor: notesSaving ? 'wait' : 'pointer', fontWeight: 600 }}
+                >
+                  {notesSaving ? 'Сохранение…' : 'Сохранить заметки'}
+                </button>
+              </>
+            ) : (
+              <>
+            {hasScenario && (
+              <div style={{ fontSize: 12, color: '#666', marginBottom: 12, padding: 8, background: '#f8f9fa', borderRadius: 8 }}>
+                <strong>Как пользоваться:</strong> выбери элемент слева или нажми переход справа. NPC — нажми на имя (слева или справа), откроется карточка.
+              </div>
+            )}
+            {!hasScenario && notesBookData && (
+              <div style={{ fontSize: 13, color: '#999', marginBottom: 12 }}>Выберите раздел слева или добавьте новый.</div>
+            )}
             <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 10 }}>{title}</div>
             <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55, marginBottom: 12 }}>{body || '—'}</div>
             {currentLocation && locationNotes && (
@@ -291,10 +469,18 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                 )}
               </div>
             )}
+              </>
+            )}
           </main>
 
-          {/* Правая колонка — инфо по текущей локации/ситуации: NPC здесь, переходы отсюда */}
+          {hasScenario && (
           <aside style={rightCol}>
+            {selectedNotesSectionId ? (
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>
+                Книга заметок
+              </div>
+            ) : (
+              <>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>
               {currentType === 'location' ? 'Эта локация' : 'Эта ситуация'}
             </div>
@@ -308,7 +494,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                       <button
                         key={sit.id}
                         type="button"
-                        onClick={() => { setCurrentType('situation'); setCurrentId(sit.id); setNpcOverlay(null); }}
+                        onClick={() => handleSelectScenario('situation', sit.id)}
                         style={{
                           padding: '8px 12px',
                           border: '1px solid #dee2e6',
@@ -368,7 +554,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                     <span style={{ color: '#666' }}>Локация: </span>
                     <button
                       type="button"
-                      onClick={() => { setCurrentType('location'); setCurrentId(currentSituation.locationId!); setNpcOverlay(null); }}
+                      onClick={() => currentSituation.locationId && handleSelectScenario('location', currentSituation.locationId)}
                       style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#0d6efd', textDecoration: 'underline', fontSize: 12 }}
                     >
                       {getLocationTitle(currentSituation.locationId) ?? '?'}
@@ -402,9 +588,12 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                 ))}
               </div>
             )}
+              </>
+            )}
           </aside>
+          )}
         </div>
-      </div>
+    </DraggableWindow>
 
       {npcOverlay && (
         <div
@@ -459,6 +648,6 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };

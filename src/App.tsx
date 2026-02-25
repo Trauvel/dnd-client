@@ -9,6 +9,7 @@ import DevPage from "./pages/DevPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import RoomHistoryPage from "./pages/RoomHistoryPage";
+import MasterBookPage from "./pages/MasterBookPage";
 import { SocketProvider } from "./store/socketContext";
 import { AuthProvider } from "./store/authContext";
 import { NotificationProvider } from "./components/Notifications/NotificationSystem";
@@ -45,6 +46,14 @@ const App: React.FC = () => {
                 element={
                   <ProtectedRoute>
                     <LocationsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/notes-book"
+                element={
+                  <ProtectedRoute>
+                    <MasterBookPage />
                   </ProtectedRoute>
                 }
               />
