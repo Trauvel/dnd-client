@@ -497,7 +497,7 @@ const ScenariosPage: React.FC = () => {
                                   cursor: 'pointer',
                                 }}
                               >
-                                Имя
+                                Сохранить
                               </button>
                               <button
                                 type="button"

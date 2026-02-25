@@ -64,6 +64,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const [bookOpen, setBookOpen] = useState(false);
   const [playerNotesBookOpen, setPlayerNotesBookOpen] = useState(false);
+  const [imagePopup, setImagePopup] = useState<{ url: string; name: string } | null>(null);
 
   const isMaster = room && user && room.masterId === user.id;
   const masterState = GameState?.master;
@@ -1179,6 +1180,93 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   </button>
                 </div>
               )}
+              {(scenario?.audios?.length ?? 0) > 0 && (
+                <>
+                  <h3 style={{ color: '#333', marginTop: '12px', marginBottom: '8px', fontSize: '15px' }}>
+                    Аудио
+                  </h3>
+                  {isMaster ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {(scenario?.audios ?? []).map((a) => {
+                        const name = a.displayName ?? a.fileName;
+                        const isPlaying = playingAudioId === a.id;
+                        return (
+                          <div
+                            key={a.id}
+                            style={{
+                              borderRadius: '6px',
+                              border: '1px solid #dee2e6',
+                              padding: '8px',
+                              background: isPlaying ? '#e7f3ff' : '#f8f9fa',
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                marginBottom: '6px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                color: 'black',
+                              }}
+                              title={name}
+                            >
+                              {name}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isPlaying) {
+                                    socket?.emit('audio:stop');
+                                  } else {
+                                    socket?.emit('audio:play', { url: a.url, loop: audioLoop, id: a.id });
+                                  }
+                                }}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '4px',
+                                  border: 'none',
+                                  background: isPlaying ? '#6c757d' : '#28a745',
+                                  color: '#fff',
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {isPlaying ? 'Стоп' : 'Играть'}
+                              </button>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', cursor: 'pointer', color: 'black' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={audioLoop}
+                                  onChange={(e) => setAudioLoop(e.target.checked)}
+                                />
+                                Зациклить
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : playingAudioId ? (
+                    <div
+                      style={{
+                        borderRadius: '6px',
+                        border: '1px solid #dee2e6',
+                        padding: '8px',
+                        background: '#e7f3ff',
+                        fontSize: '12px',
+                        color: '#333',
+                      }}
+                    >
+                      Играет: {(scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.displayName ?? (scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.fileName ?? '—'}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '12px', color: '#666' }}>Мастер включит аудио</div>
+                  )}
+                </>
+              )}
               {!scenario ? (
                 <div style={{ color: '#666', fontSize: '13px' }}>Загрузка...</div>
               ) : (() => {
@@ -1189,7 +1277,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                 return attachmentsToShow.length === 0 ? (
                   <div style={{ color: '#666', fontSize: '13px' }}>Нет вложений</div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', minWidth: 0 }}>
                     {attachmentsToShow.map((f) => {
                       const unlocked = unlockedAttachments.includes(f.id);
                       const isActive = activeAttachmentId === f.id;
@@ -1204,9 +1292,15 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                             padding: '8px',
                             background: unlocked ? '#f8f9fa' : '#f1f1f1',
                             opacity: unlocked ? 1 : 0.7,
+                            minWidth: 0,
+                            overflow: 'hidden',
                           }}
                         >
                           <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => isImage && setImagePopup({ url: f.url, name: f.displayName ?? f.fileName })}
+                            onKeyDown={(e) => isImage && (e.key === 'Enter' || e.key === ' ') && setImagePopup({ url: f.url, name: f.displayName ?? f.fileName })}
                             style={{
                               height: '80px',
                               borderRadius: '4px',
@@ -1216,13 +1310,15 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
+                              minWidth: 0,
+                              cursor: isImage ? 'pointer' : 'default',
                             }}
                           >
                             {isImage ? (
                               <img
                                 src={f.url}
                                 alt=""
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', minWidth: 0, maxWidth: '100%', display: 'block', pointerEvents: 'none' }}
                               />
                             ) : (
                               <span style={{ fontSize: '11px', color: '#666' }}>PDF/файл</span>
@@ -1313,93 +1409,6 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   </div>
                 );
               })()}
-              {(scenario?.audios?.length ?? 0) > 0 && (
-                <>
-                  <h3 style={{ color: '#333', marginTop: '16px', marginBottom: '8px', fontSize: '15px' }}>
-                    Аудио
-                  </h3>
-                  {isMaster ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {(scenario?.audios ?? []).map((a) => {
-                        const name = a.displayName ?? a.fileName;
-                        const isPlaying = playingAudioId === a.id;
-                        return (
-                          <div
-                            key={a.id}
-                            style={{
-                              borderRadius: '6px',
-                              border: '1px solid #dee2e6',
-                              padding: '8px',
-                              background: isPlaying ? '#e7f3ff' : '#f8f9fa',
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                marginBottom: '6px',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                color: 'black',
-                              }}
-                              title={name}
-                            >
-                              {name}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (isPlaying) {
-                                    socket?.emit('audio:stop');
-                                  } else {
-                                    socket?.emit('audio:play', { url: a.url, loop: audioLoop, id: a.id });
-                                  }
-                                }}
-                                style={{
-                                  padding: '4px 10px',
-                                  borderRadius: '4px',
-                                  border: 'none',
-                                  background: isPlaying ? '#6c757d' : '#28a745',
-                                  color: '#fff',
-                                  fontSize: '12px',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                {isPlaying ? 'Стоп' : 'Играть'}
-                              </button>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', cursor: 'pointer', color: 'black' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={audioLoop}
-                                  onChange={(e) => setAudioLoop(e.target.checked)}
-                                />
-                                Зациклить
-                              </label>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : playingAudioId ? (
-                    <div
-                      style={{
-                        borderRadius: '6px',
-                        border: '1px solid #dee2e6',
-                        padding: '8px',
-                        background: '#e7f3ff',
-                        fontSize: '12px',
-                        color: '#333',
-                      }}
-                    >
-                      Играет: {(scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.displayName ?? (scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.fileName ?? '—'}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '12px', color: '#666' }}>Мастер включит аудио</div>
-                  )}
-                </>
-              )}
             </>
           ) : (
             <div style={{ color: '#999', fontSize: '13px' }}>Сценарий не выбран</div>
@@ -2076,6 +2085,64 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
 
       {playerNotesBookOpen && (
         <NotesBookViewPanel onClose={() => setPlayerNotesBookOpen(false)} />
+      )}
+
+      {imagePopup && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Просмотр изображения"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={() => setImagePopup(null)}
+        >
+          <div
+            style={{
+              maxHeight: '70vh',
+              maxWidth: '90vw',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={imagePopup.url}
+              alt={imagePopup.name}
+              style={{
+                maxHeight: '70vh',
+                maxWidth: '90vw',
+                objectFit: 'contain',
+                borderRadius: 8,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setImagePopup(null)}
+              style={{
+                marginTop: 12,
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#6c757d',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 14,
+              }}
+            >
+              Закрыть
+            </button>
+          </div>
+        </div>
       )}
     </div>
     </div>
