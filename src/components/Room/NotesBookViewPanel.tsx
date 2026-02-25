@@ -97,7 +97,7 @@ export const NotesBookViewPanel: React.FC<NotesBookViewPanelProps> = ({ onClose 
                         >
                           {s.title || '—'}
                         </button>
-                        {(s.children?.length ?? 0) > 0 && renderTree(s.children, depth + 1)}
+                        {(s.children?.length ?? 0) > 0 && renderTree(s.children ?? [], depth + 1)}
                       </div>
                     ));
                   }
