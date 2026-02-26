@@ -59,6 +59,22 @@ export interface RoomInfoResponse {
   room: GameRoom;
 }
 
+/** Элемент списка комнат (для «Найти комнату») */
+export interface RoomListItem {
+  code: string;
+  masterUsername: string;
+  playersCount: number;
+  maxPlayers?: number;
+  isPaused: boolean;
+  gameStarted: boolean;
+  characterSelection: 'predefined' | 'in-room';
+  createdAt: string;
+}
+
+export interface RoomListResponse {
+  rooms: RoomListItem[];
+}
+
 export interface ErrorResponse {
   error: string;
 }
@@ -127,6 +143,26 @@ export async function getRoomInfo(code: string): Promise<RoomInfoResponse> {
   if (!response.ok) {
     const error: ErrorResponse = await response.json();
     throw new Error(error.error || 'Ошибка получения информации о комнате');
+  }
+
+  return response.json();
+}
+
+/**
+ * Получить список комнат с мастером, к которым можно подключиться
+ */
+export async function getRoomList(): Promise<RoomListResponse> {
+  const response = await fetch(`${API_CONFIG.GAME_SERVER_URL}/api/rooms`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    const error: ErrorResponse = await response.json();
+    throw new Error(error.error || 'Ошибка получения списка комнат');
   }
 
   return response.json();

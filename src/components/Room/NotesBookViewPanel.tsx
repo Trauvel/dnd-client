@@ -79,7 +79,6 @@ export const NotesBookViewPanel: React.FC<NotesBookViewPanelProps> = ({ onClose 
                   padding: 12,
                   overflowY: 'auto',
                   background: '#f8f9fa',
-                  overflow: 'scroll'
                 }}
               >
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>

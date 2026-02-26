@@ -3,17 +3,23 @@ import { joinRoom, getRoomInfo } from '../../api/rooms';
 import { CharacterSelector } from './CharacterSelector';
 
 interface JoinRoomFormProps {
+  /** Начальный код комнаты (например из «Найти комнату») */
+  initialCode?: string;
   onRoomJoined: (roomCode: string) => void;
   onCancel: () => void;
 }
 
-export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ onRoomJoined, onCancel }) => {
-  const [code, setCode] = useState('');
+export const JoinRoomForm: React.FC<JoinRoomFormProps> = ({ initialCode = '', onRoomJoined, onCancel }) => {
+  const [code, setCode] = useState(initialCode);
   const [characterId, setCharacterId] = useState<string | null>(null);
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingRoom, setIsCheckingRoom] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCode(initialCode);
+  }, [initialCode]);
 
   // Проверяем комнату при вводе кода
   useEffect(() => {

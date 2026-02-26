@@ -214,6 +214,7 @@ const MasterBookPage: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             gap: 8,
+            overflow: 'scroll'
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>

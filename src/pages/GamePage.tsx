@@ -3,16 +3,18 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useSocket } from "../store/socketContext";
 import { CreateRoomForm } from "../components/Room/CreateRoomForm";
 import { JoinRoomForm } from "../components/Room/JoinRoomForm";
+import { FindRoomPanel } from "../components/Room/FindRoomPanel";
 import { RoomLobby } from "../components/Room/RoomLobby";
 import { RoomHistory } from "../components/Room/RoomHistory";
 
-type GamePageView = 'menu' | 'create' | 'join' | 'lobby';
+type GamePageView = 'menu' | 'create' | 'join' | 'find' | 'lobby';
 
 const GamePage: React.FC = () => {
   const { roomCode: urlRoomCode } = useParams<{ roomCode?: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const [view, setView] = useState<GamePageView>('menu');
+  const [joinInitialCode, setJoinInitialCode] = useState<string>('');
   const { roomCode: currentRoomCode, disconnect } = useSocket();
   const justLeftRoomRef = useRef(false);
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
@@ -68,7 +70,22 @@ const GamePage: React.FC = () => {
   }
 
   if (view === 'join') {
-    return <JoinRoomForm onRoomJoined={handleRoomJoined} onCancel={() => setView('menu')} />;
+    return (
+      <JoinRoomForm
+        initialCode={joinInitialCode}
+        onRoomJoined={handleRoomJoined}
+        onCancel={() => { setView('menu'); setJoinInitialCode(''); }}
+      />
+    );
+  }
+
+  if (view === 'find') {
+    return (
+      <FindRoomPanel
+        onJoinRoom={(code) => { setJoinInitialCode(code); setView('join'); }}
+        onCancel={() => setView('menu')}
+      />
+    );
   }
 
   return (
@@ -92,7 +109,7 @@ const GamePage: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setView('join')}
+          onClick={() => { setJoinInitialCode(''); setView('join'); }}
           style={{
             padding: '15px 30px',
             fontSize: '16px',
@@ -104,6 +121,21 @@ const GamePage: React.FC = () => {
           }}
         >
           Присоединиться к лобби
+        </button>
+
+        <button
+          onClick={() => setView('find')}
+          style={{
+            padding: '15px 30px',
+            fontSize: '16px',
+            background: '#17a2b8',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          Найти комнату
         </button>
       </div>
 
