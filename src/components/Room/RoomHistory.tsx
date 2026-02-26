@@ -4,9 +4,11 @@ import type { RoomSnapshot } from '../../api/rooms';
 
 interface RoomHistoryProps {
   onRoomRestored: (roomCode: string) => void;
+  /** Обновить список при изменении (например после выхода из комнаты) */
+  refreshTrigger?: number;
 }
 
-export const RoomHistory: React.FC<RoomHistoryProps> = ({ onRoomRestored }) => {
+export const RoomHistory: React.FC<RoomHistoryProps> = ({ onRoomRestored, refreshTrigger = 0 }) => {
   const [snapshots, setSnapshots] = useState<RoomSnapshot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -14,8 +16,10 @@ export const RoomHistory: React.FC<RoomHistoryProps> = ({ onRoomRestored }) => {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    loadHistory();
-  }, []);
+    const delay = refreshTrigger > 0 ? 600 : 0;
+    const t = setTimeout(loadHistory, delay);
+    return () => clearTimeout(t);
+  }, [refreshTrigger]);
 
   const loadHistory = async () => {
     try {

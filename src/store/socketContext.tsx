@@ -25,6 +25,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const roomClosedNotifiedRef = useRef(false);
   const { token } = useAuth();
   const { addNotification } = useNotifications();
 
@@ -149,16 +150,20 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     socket.on("room:closed", (data: { reason?: string; message?: string }) => {
       console.log("Room closed:", data);
-      addNotification({
-        type: 'error',
-        title: 'Комната закрыта',
-        message: data.message || 'Комната была закрыта',
-        duration: 0, // Не исчезает автоматически
-      });
+      if (!roomClosedNotifiedRef.current) {
+        roomClosedNotifiedRef.current = true;
+        addNotification({
+          type: 'error',
+          title: 'Комната закрыта',
+          message: data.message || 'Комната была закрыта',
+          duration: 0, // Не исчезает автоматически
+        });
+      }
     });
 
     socket.on("room:reopened", (data: { master: string; message?: string }) => {
       console.log("Room reopened:", data);
+      roomClosedNotifiedRef.current = false;
       addNotification({
         type: 'success',
         title: 'Комната активирована',
@@ -184,6 +189,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const disconnect = () => {
+    roomClosedNotifiedRef.current = false;
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;

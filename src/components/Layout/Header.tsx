@@ -22,9 +22,9 @@ const Header: React.FC = () => {
               <Link to="/characters" style={{ color: "#fff", textDecoration: "none" }}>
                 Персонажи
               </Link>
-              <Link to="/room-history" style={{ color: "#fff", textDecoration: "none" }}>
+              {/* <Link to="/room-history" style={{ color: "#fff", textDecoration: "none" }}>
                 История игр
-              </Link>
+              </Link> */}
               <Link to="/locations" style={{ color: "#fff", textDecoration: "none" }}>
                 Сценарии
               </Link>

@@ -72,6 +72,99 @@ export function addSectionInTree(
   });
 }
 
+/** Список id секции и всех её потомков (для запрета переноса в себя/потомка) */
+export function getSectionAndDescendantIds(section: MasterBookSection): string[] {
+  const ids = [section.id];
+  for (const ch of section.children ?? []) ids.push(...getSectionAndDescendantIds(ch));
+  return ids;
+}
+
+/** Контекст секции среди соседей: массив соседей и индекс в нём */
+export function getSiblingContext(
+  sections: MasterBookSection[],
+  sectionId: string,
+  parentId: string | null = null
+): { siblings: MasterBookSection[]; index: number; parentId: string | null } | null {
+  for (let i = 0; i < sections.length; i++) {
+    if (sections[i].id === sectionId) return { siblings: sections, index: i, parentId };
+    const inChild = getSiblingContext(sections[i].children ?? [], sectionId, sections[i].id);
+    if (inChild) return inChild;
+  }
+  return null;
+}
+
+/** Удалить секцию из дерева и вернуть новое дерево + извлечённая секция */
+function extractSectionFromTree(
+  sections: MasterBookSection[],
+  id: string
+): { sections: MasterBookSection[]; extracted: MasterBookSection | null } {
+  let extracted: MasterBookSection | null = null;
+  const newSections = sections
+    .filter((s) => {
+      if (s.id === id) {
+        extracted = s;
+        return false;
+      }
+      return true;
+    })
+    .map((s) => {
+      const { sections: newChildren, extracted: fromChild } = extractSectionFromTree(s.children ?? [], id);
+      if (fromChild) extracted = fromChild;
+      return { ...s, children: newChildren };
+    });
+  return { sections: newSections, extracted };
+}
+
+/** Вставить секцию в дерево: в корень на index или в детей parentId на index */
+export function insertSectionInTree(
+  sections: MasterBookSection[],
+  section: MasterBookSection,
+  parentId: string | null,
+  index: number
+): MasterBookSection[] {
+  if (parentId === null) {
+    const copy = [...sections];
+    copy.splice(Math.max(0, Math.min(index, copy.length)), 0, section);
+    return copy;
+  }
+  return sections.map((s) => {
+    if (s.id !== parentId) return { ...s, children: insertSectionInTree(s.children ?? [], section, parentId, index) };
+    const children = [...(s.children ?? [])];
+    children.splice(Math.max(0, Math.min(index, children.length)), 0, section);
+    return { ...s, children };
+  });
+}
+
+/** Переместить секцию в новый родитель и позицию. Нельзя переносить в себя или в потомка. */
+export function moveSectionInTree(
+  sections: MasterBookSection[],
+  sectionId: string,
+  newParentId: string | null,
+  newIndex: number
+): MasterBookSection[] {
+  const section = findSectionById(sections, sectionId);
+  if (!section) return sections;
+  const forbiddenIds = new Set(getSectionAndDescendantIds(section));
+  if (newParentId !== null && forbiddenIds.has(newParentId)) return sections;
+
+  const { sections: without, extracted } = extractSectionFromTree(sections, sectionId);
+  if (!extracted) return sections;
+  return insertSectionInTree(without, extracted, newParentId, newIndex);
+}
+
+/** Поднять/опустить секцию среди соседей (сдвиг на одну позицию) */
+export function reorderSectionInTree(
+  sections: MasterBookSection[],
+  sectionId: string,
+  direction: 'up' | 'down'
+): MasterBookSection[] {
+  const ctx = getSiblingContext(sections, sectionId);
+  if (!ctx || ctx.siblings.length <= 1) return sections;
+  const newIndex = direction === 'up' ? Math.max(0, ctx.index - 1) : Math.min(ctx.siblings.length - 1, ctx.index + 1);
+  if (newIndex === ctx.index) return sections;
+  return moveSectionInTree(sections, sectionId, ctx.parentId, newIndex);
+}
+
 export async function getMasterBook(): Promise<MasterBookData> {
   const response = await fetch(`${API_CONFIG.WEBSITE_API_URL}/api/master-book`, {
     method: 'GET',

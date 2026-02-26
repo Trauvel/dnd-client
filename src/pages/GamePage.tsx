@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useSocket } from "../store/socketContext";
 import { CreateRoomForm } from "../components/Room/CreateRoomForm";
@@ -14,16 +14,28 @@ const GamePage: React.FC = () => {
   const navigate = useNavigate();
   const [view, setView] = useState<GamePageView>('menu');
   const { roomCode: currentRoomCode, disconnect } = useSocket();
+  const justLeftRoomRef = useRef(false);
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
 
   // Код комнаты из URL (fallback из pathname, если useParams ещё не обновился при навигации)
   const roomCodeFromUrl = urlRoomCode ?? (location.pathname.match(/^\/room\/([^/]+)$/)?.[1] ?? null);
 
-  // Если уже в комнате по сокету, но открыт меню — переходим в комнату по URL (хуки всегда вызываем до любых return)
+  // Если уже в комнате по сокету, но открыт меню — переходим в комнату по URL. Не редиректить сразу после выхода из комнаты.
   useEffect(() => {
-    if (currentRoomCode && view === 'menu') {
+    if (!currentRoomCode) justLeftRoomRef.current = false;
+    if (currentRoomCode && view === 'menu' && !justLeftRoomRef.current) {
       navigate(`/room/${currentRoomCode}`, { replace: true });
     }
   }, [currentRoomCode, view, navigate]);
+
+  // После выхода из комнаты: дожидаемся перехода на главную, затем отключаем сокет и обновляем список сохранённых игр.
+  useEffect(() => {
+    if (location.pathname === '/' && justLeftRoomRef.current) {
+      justLeftRoomRef.current = false;
+      disconnect();
+      setHistoryRefreshTrigger((t) => t + 1);
+    }
+  }, [location.pathname, disconnect]);
 
   // В комнате по URL — показываем лобби (после перезагрузки остаёмся в игре). Пустой код не рендерим.
   if (roomCodeFromUrl && roomCodeFromUrl.trim() !== '') {
@@ -31,8 +43,9 @@ const GamePage: React.FC = () => {
       <RoomLobby
         roomCode={roomCodeFromUrl}
         onLeave={() => {
-          disconnect();
-          navigate('/');
+          justLeftRoomRef.current = true;
+          setView('menu');
+          navigate('/', { replace: true });
         }}
       />
     );
@@ -95,7 +108,7 @@ const GamePage: React.FC = () => {
       </div>
 
       {/* История игр */}
-      <RoomHistory onRoomRestored={handleRoomRestored} />
+      <RoomHistory onRoomRestored={handleRoomRestored} refreshTrigger={historyRefreshTrigger} />
     </div>
   );
 };

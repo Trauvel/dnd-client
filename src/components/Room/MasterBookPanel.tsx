@@ -8,6 +8,11 @@ import {
   updateSectionInTree,
   removeSectionFromTree,
   addSectionInTree,
+  reorderSectionInTree,
+  moveSectionInTree,
+  getSiblingContext,
+  getSectionAndDescendantIds,
+  flattenSections,
   type MasterBookData,
   type MasterBookSection,
 } from '../../api/masterBook';
@@ -109,6 +114,21 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
     if (selectedNotesSectionId === id) setSelectedNotesSectionId(next[0]?.id ?? null);
   };
 
+  const reorderNotesSection = (id: string, direction: 'up' | 'down') => {
+    if (!notesBookData) return;
+    setNotesBookData({ sections: reorderSectionInTree(notesBookData.sections, id, direction) });
+  };
+
+  const setNotesSectionParent = (id: string, newParentId: string | null) => {
+    if (!notesBookData) return;
+    const section = findSectionById(notesBookData.sections, id);
+    if (!section) return;
+    const parentChildren = newParentId
+      ? (findSectionById(notesBookData.sections, newParentId)?.children ?? [])
+      : notesBookData.sections;
+    setNotesBookData({ sections: moveSectionInTree(notesBookData.sections, id, newParentId, parentChildren.length) });
+  };
+
   const currentLocation = currentType === 'location' ? locations.find((l) => l.id === currentId) : null;
   const currentSituation = currentType === 'situation' ? situations.find((s) => s.id === currentId) : null;
   const selectedNotesSection =
@@ -191,56 +211,63 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
             ) : (
               (() => {
                 function renderNotesTree(sections: MasterBookSection[], depth: number) {
-                  return sections.map((sec) => (
-                    <div key={sec.id} style={{ marginBottom: 2 }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 2,
-                          paddingLeft: depth * 10,
-                          borderRadius: 6,
-                          background: selectedNotesSectionId === sec.id ? '#e7f1ff' : 'transparent',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleSelectNotesSection(sec.id)}
+                  return sections.map((sec) => {
+                    const siblingCtx = notesBookData ? getSiblingContext(notesBookData.sections, sec.id) : null;
+                    const canMoveUp = siblingCtx && siblingCtx.index > 0;
+                    const canMoveDown = siblingCtx && siblingCtx.index < siblingCtx.siblings.length - 1;
+                    return (
+                      <div key={sec.id} style={{ marginBottom: 2 }}>
+                        <div
                           style={{
-                            flex: 1,
-                            textAlign: 'left',
-                            padding: '6px 8px',
-                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            paddingLeft: depth * 10,
                             borderRadius: 6,
-                            background: 'none',
-                            color: selectedNotesSectionId === sec.id ? '#0d6efd' : '#333',
-                            fontWeight: selectedNotesSectionId === sec.id ? 600 : 400,
-                            fontSize: depth === 0 ? 13 : 12,
-                            cursor: 'pointer',
+                            background: selectedNotesSectionId === sec.id ? '#e7f1ff' : 'transparent',
                           }}
                         >
-                          {sec.title || '—'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); addNotesSection(sec.id); }}
-                          title="Добавить дочернюю"
-                          style={{ padding: '2px 6px', border: 'none', background: 'none', cursor: 'pointer', color: '#0d6efd', fontSize: 14 }}
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeNotesSection(sec.id)}
-                          title="Удалить"
-                          style={{ padding: '2px 6px', border: 'none', background: 'none', cursor: 'pointer', color: '#999', fontSize: 14 }}
-                        >
-                          ×
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectNotesSection(sec.id)}
+                            style={{
+                              flex: 1,
+                              textAlign: 'left',
+                              padding: '6px 8px',
+                              border: 'none',
+                              borderRadius: 6,
+                              background: 'none',
+                              color: selectedNotesSectionId === sec.id ? '#0d6efd' : '#333',
+                              fontWeight: selectedNotesSectionId === sec.id ? 600 : 400,
+                              fontSize: depth === 0 ? 13 : 12,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {sec.title || '—'}
+                          </button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); reorderNotesSection(sec.id, 'up'); }} disabled={!canMoveUp} title="Выше" style={{ padding: '2px 4px', border: 'none', background: 'none', cursor: canMoveUp ? 'pointer' : 'not-allowed', color: canMoveUp ? '#495057' : '#ccc', fontSize: 11 }}>↑</button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); reorderNotesSection(sec.id, 'down'); }} disabled={!canMoveDown} title="Ниже" style={{ padding: '2px 4px', border: 'none', background: 'none', cursor: canMoveDown ? 'pointer' : 'not-allowed', color: canMoveDown ? '#495057' : '#ccc', fontSize: 11 }}>↓</button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); addNotesSection(sec.id); }}
+                            title="Добавить дочернюю"
+                            style={{ padding: '2px 6px', border: 'none', background: 'none', cursor: 'pointer', color: '#0d6efd', fontSize: 14 }}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeNotesSection(sec.id)}
+                            title="Удалить"
+                            style={{ padding: '2px 6px', border: 'none', background: 'none', cursor: 'pointer', color: '#999', fontSize: 14 }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        {(sec.children?.length ?? 0) > 0 && <div style={{ marginTop: 2 }}>{renderNotesTree(sec.children!, depth + 1)}</div>}
                       </div>
-                      {(sec.children?.length ?? 0) > 0 && <div style={{ marginTop: 2 }}>{renderNotesTree(sec.children!, depth + 1)}</div>}
-                    </div>
-                  ));
+                    );
+                  });
                 }
                 return renderNotesTree(notesBookData.sections, 0);
               })()
@@ -416,14 +443,33 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
             {selectedNotesSection ? (
               <>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>Редактирование раздела книги заметок</div>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4 }}>Название</label>
-                  <input
-                    type="text"
-                    value={selectedNotesSection.title}
-                    onChange={(e) => updateNotesSection(selectedNotesSection.id, { title: e.target.value })}
-                    style={{ width: '100%', padding: '8px 10px', fontSize: 16, border: '1px solid #dee2e6', borderRadius: 8, boxSizing: 'border-box' }}
-                  />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: '1 1 180px' }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4 }}>Название</label>
+                    <input
+                      type="text"
+                      value={selectedNotesSection.title}
+                      onChange={(e) => updateNotesSection(selectedNotesSection.id, { title: e.target.value })}
+                      style={{ width: '100%', padding: '8px 10px', fontSize: 16, border: '1px solid #dee2e6', borderRadius: 8, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  {notesBookData && (
+                    <div style={{ minWidth: 140 }}>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4 }}>Родитель</label>
+                      <select
+                        value={getSiblingContext(notesBookData.sections, selectedNotesSection.id)?.parentId ?? ''}
+                        onChange={(e) => setNotesSectionParent(selectedNotesSection.id, e.target.value || null)}
+                        style={{ width: '100%', padding: '8px 10px', fontSize: 14, border: '1px solid #dee2e6', borderRadius: 8, boxSizing: 'border-box', background: '#fff' }}
+                      >
+                        <option value="">Корень</option>
+                        {flattenSections(notesBookData.sections)
+                          .filter((sec) => !getSectionAndDescendantIds(selectedNotesSection).includes(sec.id))
+                          .map((sec) => (
+                            <option key={sec.id} value={sec.id}>{sec.title || '—'}</option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4 }}>Содержимое</label>
