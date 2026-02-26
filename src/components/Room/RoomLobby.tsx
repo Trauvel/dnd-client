@@ -6,6 +6,8 @@ import { useSocket } from '../../store/socketContext';
 import { useAuth } from '../../store/authContext';
 import { getScenarios, getScenarioById, type Scenario } from '../../api/scenarios';
 import { getCharacterPortrait, getCharacterForView, updateCharacter, type CharacterViewResult, type Character } from '../../api/characters';
+import { getProficiencyBonus, xpToLevel } from '../../utils/dndLevel';
+import type { AbilityKey } from '../../types/characterSheet';
 import { CharacterSheetView } from '../Character/CharacterSheetView';
 import type { CombatState, NpcInstance } from '../../api/socket';
 import { getScenarioNpcsForView, type ScenarioNpc } from '../../api/scenarioNpcs';
@@ -66,6 +68,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [playerNotesBookOpen, setPlayerNotesBookOpen] = useState(false);
   const [imagePopup, setImagePopup] = useState<{ url: string; name: string } | null>(null);
   const [hpUpdating, setHpUpdating] = useState(false);
+  const [selectedWeaponIndex, setSelectedWeaponIndex] = useState(0);
 
   const isMaster = room && user && room.masterId === user.id;
   const masterState = GameState?.master;
@@ -540,6 +543,77 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     }
   };
 
+  const getAbilityScore = (c: Character, ability: AbilityKey): number => {
+    const v = c[ability];
+    return typeof v === 'number' ? v : 10;
+  };
+  const getAbilityMod = (score: number): number => Math.floor((score - 10) / 2);
+
+  const weaponsFromSheet = (() => {
+    const raw = myCharacter?.characterData as Record<string, unknown> | undefined;
+    const list = raw?.weapons;
+    if (!Array.isArray(list) || list.length === 0) return [];
+    return list.map((w: any) => ({
+      name: typeof w?.name === 'string' ? w.name : 'Оружие',
+      damage: typeof w?.damage === 'string' ? w.damage : '',
+      attackModifier: typeof w?.attackModifier === 'string' ? w.attackModifier : undefined,
+      proficient: !!w?.proficient,
+      ability: (w?.ability && ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].includes(w.ability)) ? w.ability : 'strength' as AbilityKey,
+    }));
+  })();
+
+  const safeWeaponIndex = weaponsFromSheet.length > 0 ? Math.min(selectedWeaponIndex, weaponsFromSheet.length - 1) : 0;
+  const selectedWeapon = weaponsFromSheet[safeWeaponIndex] ?? null;
+
+  const parseDamageDice = (s: string): { count: number; sides: number } | null => {
+    const m = /^(\d+)d(\d+)$/i.exec((s || '').trim());
+    if (!m) return null;
+    const count = Math.min(20, Math.max(1, parseInt(m[1], 10)));
+    const sides = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100].includes(Number(m[2])) ? parseInt(m[2], 10) : 6;
+    return { count, sides };
+  };
+
+  const handleWeaponAttack = () => {
+    if (!socket || !myCharacter || !selectedWeapon) return;
+    const level = xpToLevel(myCharacter.experience ?? 0);
+    const profBonus = getProficiencyBonus(level);
+    const abilityScore = getAbilityScore(myCharacter, selectedWeapon.ability);
+    const abilityMod = getAbilityMod(abilityScore);
+    let attackMod = abilityMod;
+    if (selectedWeapon.attackModifier !== undefined && selectedWeapon.attackModifier !== null && String(selectedWeapon.attackModifier).trim() !== '') {
+      const s = String(selectedWeapon.attackModifier).trim();
+      const m = /([+-])?(\d+)/.exec(s);
+      if (m) {
+        const n = parseInt(m[2], 10);
+        attackMod = m[1] === '-' ? -n : n;
+      } else if (selectedWeapon.proficient) {
+        attackMod += profBonus;
+      }
+    } else if (selectedWeapon.proficient) {
+      attackMod += profBonus;
+    }
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const total = d20 + attackMod;
+    const formula = `Атака (${selectedWeapon.name}): ${total}`;
+    socket.emit('dice:roll', { formula, result: [d20], total });
+  };
+
+  const handleWeaponDamage = () => {
+    if (!socket || !myCharacter || !selectedWeapon) return;
+    const parsed = parseDamageDice(selectedWeapon.damage);
+    if (!parsed) {
+      const fallback = rollDiceLocal(1, 6);
+      socket.emit('dice:roll', { formula: `Урон (${selectedWeapon.name}) 1d6: ${fallback.total}`, result: fallback.result, total: fallback.total });
+      return;
+    }
+    const abilityScore = getAbilityScore(myCharacter, selectedWeapon.ability);
+    const abilityMod = getAbilityMod(abilityScore);
+    const { result, total: diceTotal } = rollDiceLocal(parsed.count, parsed.sides);
+    const total = diceTotal + abilityMod;
+    const formula = `Урон (${selectedWeapon.name}) ${selectedWeapon.damage}${abilityMod >= 0 ? '+' : ''}${abilityMod}: ${total}`;
+    socket.emit('dice:roll', { formula, result, total });
+  };
+
   const overlayAttachment =
     scenario?.attachments?.find((a) => a.id === activeAttachmentId) || null;
   const centerShowImage =
@@ -874,6 +948,56 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', background: '#28a745', color: '#fff', fontSize: '13px', cursor: hpUpdating ? 'wait' : 'pointer', fontWeight: 600 }}
                 >
                   +5
+                </button>
+              </div>
+            </div>
+          )}
+          {!isMaster && myCharacter && weaponsFromSheet.length > 0 && (
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '10px',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6',
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#495057', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Оружие
+              </div>
+              <select
+                value={safeWeaponIndex}
+                onChange={(e) => setSelectedWeaponIndex(Number(e.target.value))}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid #ced4da',
+                  fontSize: '13px',
+                  marginBottom: '8px',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {weaponsFromSheet.map((w, i) => (
+                  <option key={i} value={i}>{w.name || `Оружие ${i + 1}`}</option>
+                ))}
+              </select>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleWeaponAttack}
+                  disabled={!socket}
+                  style={{ flex: 1, minWidth: '70px', padding: '6px 10px', borderRadius: '6px', border: 'none', background: socket ? '#0d6efd' : '#adb5bd', color: '#fff', fontSize: '12px', cursor: socket ? 'pointer' : 'not-allowed', fontWeight: 600 }}
+                >
+                  Атака
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWeaponDamage}
+                  disabled={!socket}
+                  style={{ flex: 1, minWidth: '70px', padding: '6px 10px', borderRadius: '6px', border: 'none', background: socket ? '#6f42c1' : '#adb5bd', color: '#fff', fontSize: '12px', cursor: socket ? 'pointer' : 'not-allowed', fontWeight: 600 }}
+                >
+                  Урон
                 </button>
               </div>
             </div>

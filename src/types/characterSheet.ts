@@ -19,12 +19,32 @@ export interface CharacterSheetData {
   flaws?: string;
   featuresTraits?: string;
   equipment?: string;
-  /** Список оружий (название, мод. атаки, урон), добавлять/удалять как предметы */
-  weapons?: { name: string; attackModifier: string; damage: string }[];
+  /** Список оружий: название, кубики урона (1d8, 2d6), владение, характеристика для броска */
+  weapons?: {
+    name: string;
+    /** Формула кубиков урона (игрок вводит сам), напр. 1d8, 2d6 */
+    damage: string;
+    /** Бонус атаки вручную (если пусто — считается по характеристике + владение) */
+    attackModifier?: string;
+    /** Владение оружием — добавляет бонус мастерства к атаке */
+    proficient?: boolean;
+    /** По какой характеристике считать атаку и урон: Сил, Лов и т.д. */
+    ability?: AbilityKey;
+  }[];
 }
 
 export const ABILITY_KEYS = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const;
 export type AbilityKey = (typeof ABILITY_KEYS)[number];
+
+/** Короткие подписи характеристик для UI */
+export const ABILITY_LABELS: Record<AbilityKey, string> = {
+  strength: 'Сил',
+  dexterity: 'Лов',
+  constitution: 'Тел',
+  intelligence: 'Инт',
+  wisdom: 'Мдр',
+  charisma: 'Хар',
+};
 
 /** Навыки D&D 5e: название и ключ характеристики */
 export const DND_SKILLS: { key: string; name: string; ability: AbilityKey }[] = [

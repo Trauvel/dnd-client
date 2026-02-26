@@ -6,8 +6,22 @@ import {
   DEFAULT_SHEET_DATA,
   DND_SKILLS,
   type AbilityKey,
+  ABILITY_KEYS,
+  ABILITY_LABELS,
 } from '../../types/characterSheet';
 import '../../pages/PlayerPage.css';
+
+function normalizeWeapon(
+  w: { name: string; damage: string; attackModifier?: string; proficient?: boolean; ability?: AbilityKey }
+): { name: string; damage: string; attackModifier?: string; proficient: boolean; ability: AbilityKey } {
+  return {
+    name: w.name ?? '',
+    damage: w.damage ?? '',
+    attackModifier: w.attackModifier,
+    proficient: w.proficient ?? false,
+    ability: (w.ability && ABILITY_KEYS.includes(w.ability) ? w.ability : 'strength') as AbilityKey,
+  };
+}
 
 export interface CreateDraft {
   characterName: string;
@@ -297,14 +311,23 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
               {(sheetData.weapons ?? []).map((w, index) => (
                 <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #dee2e6', borderRadius: 4 }}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input type="text" value={w.name} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...next[index], name: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Оружие" style={{ ...sheetStyle, flex: 1, minWidth: 100 }} />
-                    <input type="text" value={w.attackModifier} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...next[index], attackModifier: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Мод. атаки (+5)" style={{ ...sheetStyle, width: 100 }} />
-                    <input type="text" value={w.damage} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...next[index], damage: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Урон (1d8+3)" style={{ ...sheetStyle, width: 120 }} />
+                    <input type="text" value={w.name} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), name: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Оружие" style={{ ...sheetStyle, flex: 1, minWidth: 100 }} />
+                    <input type="text" value={w.damage} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), damage: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Кубики урона (1d8, 2d6)" style={{ ...sheetStyle, width: 140 }} />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={w.proficient ?? false} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), proficient: e.target.checked }; updateSheet({ weapons: next }); }} />
+                      Владение
+                    </label>
+                    <select value={w.ability ?? 'strength'} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), ability: e.target.value as AbilityKey }; updateSheet({ weapons: next }); }} style={{ ...sheetStyle, width: 72 }}>
+                      {ABILITY_KEYS.map((key) => (
+                        <option key={key} value={key}>{ABILITY_LABELS[key]}</option>
+                      ))}
+                    </select>
+                    <input type="text" value={w.attackModifier ?? ''} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), attackModifier: e.target.value || undefined }; updateSheet({ weapons: next }); }} placeholder="Бонус атаки (опц.)" style={{ ...sheetStyle, width: 110 }} title="Оставьте пустым — считается по характеристике и владению" />
                     <button type="button" onClick={() => updateSheet({ weapons: (sheetData.weapons ?? []).filter((_, i) => i !== index) })}>×</button>
                   </div>
                 </div>
               ))}
-              <button type="button" onClick={() => updateSheet({ weapons: [...(sheetData.weapons ?? []), { name: '', attackModifier: '', damage: '' }] })}>+ Оружие</button>
+              <button type="button" onClick={() => updateSheet({ weapons: [...(sheetData.weapons ?? []), normalizeWeapon({ name: '', damage: '' })] })}>+ Оружие</button>
             </div>
             <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Инвентарь</h3>
               {draft.inventory.map((item, index) => (
