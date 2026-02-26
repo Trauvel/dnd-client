@@ -14,6 +14,8 @@ export interface CombatParticipant {
   hp?: number;
   maxHp?: number;
   isDead?: boolean;
+  /** Ключи состояний/эффектов (например из CONDITION_OPTIONS) */
+  effects?: string[];
 }
 
 export interface NpcInstance {

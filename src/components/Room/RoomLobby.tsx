@@ -77,6 +77,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [selectedSaveAbility, setSelectedSaveAbility] = useState<AbilityKey>('strength');
   const [conditionsUpdating, setConditionsUpdating] = useState(false);
   const [spellSlotsUpdating, setSpellSlotsUpdating] = useState(false);
+  const [combatParticipantUpdating, setCombatParticipantUpdating] = useState<string | null>(null);
 
   const isMaster = room && user && room.masterId === user.id;
   const masterState = GameState?.master;
@@ -601,6 +602,38 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     return { count, sides };
   };
 
+  /**
+   * Парсит хиты из строки и возвращает результат для спавна NPC.
+   * Формат "9 (2к8)": 9 — минимум, бросок 2к8; итог = max(9, бросок).
+   * Формат "2к8" или "2d8+3": просто бросок.
+   */
+  const parseAndRollHp = (hpText: string | null | undefined): number | null => {
+    const raw = (hpText || '').trim().replace(/\s+/g, ' ');
+    if (!raw) return null;
+
+    const minAndDice = raw.match(/^(\d+)\s*\((.+)\)\s*$/);
+    let minimum: number | null = null;
+    let dicePart = raw;
+    if (minAndDice) {
+      minimum = parseInt(minAndDice[1], 10);
+      dicePart = minAndDice[2].trim();
+    }
+
+    const diceMatch = dicePart.match(/(\d+)[кdkКD](\d+)([+-]\d+)?/i);
+    if (!diceMatch) return minimum != null ? Math.max(1, minimum) : null;
+    const count = Math.min(20, Math.max(1, parseInt(diceMatch[1], 10)));
+    const sides = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100].includes(Number(diceMatch[2])) ? parseInt(diceMatch[2], 10) : 6;
+    const { total } = rollDiceLocal(count, sides);
+    let mod = 0;
+    if (diceMatch[3]) {
+      const modStr = diceMatch[3];
+      mod = (modStr.startsWith('-') ? -1 : 1) * (parseInt(modStr.slice(1), 10) || 0);
+    }
+    const rolled = Math.max(1, total + mod);
+    const result = minimum != null ? Math.max(minimum, rolled) : rolled;
+    return Math.max(1, result);
+  };
+
   const handleWeaponAttack = () => {
     if (!socket || !myCharacter || !selectedWeapon) return;
     const level = xpToLevel(myCharacter.experience ?? 0);
@@ -704,6 +737,24 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     } finally {
       setSpellSlotsUpdating(false);
     }
+  };
+
+  const participantKey = (p: { kind: string; id: string }) => `${p.kind}-${p.id}`;
+  const handleCombatParticipantHp = (p: import('../../api/socket').CombatParticipant, delta: number) => {
+    if (!sendAction || !combat?.order) return;
+    const currentHp = p.hp ?? 0;
+    const maxHp = p.maxHp ?? 999;
+    const newHp = Math.max(0, Math.min(maxHp, currentHp + delta));
+    const key = participantKey(p);
+    setCombatParticipantUpdating(key);
+    sendAction('combat:updateParticipant', { participantId: p.id, kind: p.kind, hp: newHp, roomCode });
+    setCombatParticipantUpdating(null);
+  };
+  const handleCombatParticipantEffect = (p: import('../../api/socket').CombatParticipant, effectKey: string, checked: boolean) => {
+    if (!sendAction) return;
+    const next = Array.isArray(p.effects) ? [...p.effects] : [];
+    if (checked) next.push(effectKey); else next.splice(next.indexOf(effectKey), 1);
+    sendAction('combat:updateParticipant', { participantId: p.id, kind: p.kind, effects: next, roomCode });
   };
 
   const handleWeaponDamage = () => {
@@ -1498,10 +1549,32 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                           HP: {hp}/{maxHp}
                         </div>
                       )}
+                      {isMaster && (
+                        <div style={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); handleCombatParticipantHp(p, -5); }} disabled={combatParticipantUpdating === participantKey(p) || (hp ?? 0) <= 0} style={{ padding: '2px 6px', borderRadius: 4, border: 'none', background: '#dc3545', color: '#fff', fontSize: 10, cursor: 'pointer' }}>−5</button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); handleCombatParticipantHp(p, -1); }} disabled={combatParticipantUpdating === participantKey(p) || (hp ?? 0) <= 0} style={{ padding: '2px 6px', borderRadius: 4, border: 'none', background: '#fd7e14', color: '#fff', fontSize: 10, cursor: 'pointer' }}>−1</button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); handleCombatParticipantHp(p, 1); }} disabled={combatParticipantUpdating === participantKey(p)} style={{ padding: '2px 6px', borderRadius: 4, border: 'none', background: '#28a745', color: '#fff', fontSize: 10, cursor: 'pointer' }}>+1</button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); handleCombatParticipantHp(p, 5); }} disabled={combatParticipantUpdating === participantKey(p)} style={{ padding: '2px 6px', borderRadius: 4, border: 'none', background: '#28a745', color: '#fff', fontSize: 10, cursor: 'pointer' }}>+5</button>
+                        </div>
+                      )}
+                      {isMaster && (
+                        <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
+                          {CONDITION_OPTIONS.map((opt) => {
+                            const checked = (p.effects ?? []).includes(opt.key);
+                            return (
+                              <label key={opt.key} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                                <input type="checkbox" checked={checked} onChange={(e) => handleCombatParticipantEffect(p, opt.key, e.target.checked)} />
+                                {opt.label}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                       {isMaster && isNpc && (
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             if (!sendAction) return;
                             sendAction('npc:toggleDead', { npcId: p.id });
                           }}
@@ -2530,7 +2603,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   const instances = Array.from({ length: npcSpawnCount }, (_, i) => {
                     const baseName = template.name || 'NPC';
                     const name = npcSpawnCount > 1 ? `${baseName} #${i + 1}` : baseName;
-                    const hpAverage = template.hpAverage ?? undefined;
+                    const rolledHp = template.hpText ? parseAndRollHp(template.hpText) : null;
+                    const hpValue = rolledHp ?? template.hpAverage ?? undefined;
                     const speedNumber =
                       template.speed && /^\d+/.test(template.speed)
                         ? Number((template.speed.match(/^\d+/) || ['0'])[0])
@@ -2540,16 +2614,14 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                       name,
                       imageUrl: template.imageUrl ?? undefined,
                       armorClass: template.armorClass ?? undefined,
-                      hp: hpAverage,
-                      maxHp: hpAverage,
+                      hp: hpValue,
+                      maxHp: hpValue,
                       speed: speedNumber,
                       dexterity: template.dexterity ?? 10,
                       isDead: false,
                     };
                   });
-                  sendAction('npc:spawn', {
-                    instances,
-                  });
+                  sendAction('npc:spawn', { instances, roomCode });
                   setOverlayHidden(true);
                   setNpcModalOpen(false);
                 }}
