@@ -8,18 +8,22 @@ import {
   type AbilityKey,
   ABILITY_KEYS,
   ABILITY_LABELS,
+  WEAPON_DAMAGE_TYPES,
+  WEAPON_DAMAGE_TYPE_LABELS,
+  type WeaponDamageType,
 } from '../../types/characterSheet';
 import '../../pages/PlayerPage.css';
 
 function normalizeWeapon(
-  w: { name: string; damage: string; attackModifier?: string; proficient?: boolean; ability?: AbilityKey }
-): { name: string; damage: string; attackModifier?: string; proficient: boolean; ability: AbilityKey } {
+  w: { name: string; damage: string; attackModifier?: string; proficient?: boolean; ability?: AbilityKey; damageType?: WeaponDamageType }
+): { name: string; damage: string; attackModifier?: string; proficient: boolean; ability: AbilityKey; damageType?: WeaponDamageType } {
   return {
     name: w.name ?? '',
     damage: w.damage ?? '',
     attackModifier: w.attackModifier,
     proficient: w.proficient ?? false,
     ability: (w.ability && ABILITY_KEYS.includes(w.ability) ? w.ability : 'strength') as AbilityKey,
+    damageType: w.damageType && WEAPON_DAMAGE_TYPES.includes(w.damageType) ? w.damageType : undefined,
   };
 }
 
@@ -288,7 +292,7 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
           <div><label style={labelStyle}>Текущие хиты</label>{input('number', character.hp ?? 10, (v) => updateStat('hp', v))}</div>
           <div><label style={labelStyle}>Временные хиты</label>{input('number', sheetData.tempHp ?? 0, (v) => updateSheetData({ tempHp: typeof v === 'number' ? v : 0 }))}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div><label style={labelStyle}>Кость хитов (итого)</label><input type="text" value={sheetData.hitDiceTotal ?? ''} onChange={(e) => updateSheetData({ hitDiceTotal: e.target.value })} disabled={!canEdit} placeholder="1d8" style={sheetStyle} /></div>
+            <div><label style={labelStyle}>Кость хитов (итого)</label><input type="text" value={sheetData.hitDiceTotal ?? ''} onChange={(e) => updateSheetData({ hitDiceTotal: e.target.value })} disabled={!canEdit} placeholder="1к8" style={sheetStyle} /></div>
             <div><label style={labelStyle}>Потрачено</label>{input('number', sheetData.hitDiceUsed ?? 0, (v) => updateSheetData({ hitDiceUsed: typeof v === 'number' ? v : 0 }))}</div>
           </div>
           <div><label style={labelStyle}>Спасброски от смерти</label>
@@ -335,7 +339,7 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
               <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #dee2e6', borderRadius: 4 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
                   <input type="text" value={w.name} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), name: e.target.value }; updateSheetData({ weapons: next }); }} disabled={!canEdit} placeholder="Оружие" style={{ ...sheetStyle, flex: 1, minWidth: 100 }} />
-                  <input type="text" value={w.damage} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), damage: e.target.value }; updateSheetData({ weapons: next }); }} disabled={!canEdit} placeholder="Кубики урона (1d8, 2d6)" style={{ ...sheetStyle, width: 140 }} />
+                  <input type="text" value={w.damage} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), damage: e.target.value }; updateSheetData({ weapons: next }); }} disabled={!canEdit} placeholder="Кубики урона (1к8, 2к6)" style={{ ...sheetStyle, width: 140 }} />
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: canEdit ? 'pointer' : 'default' }}>
                     <input type="checkbox" checked={w.proficient ?? false} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), proficient: e.target.checked }; updateSheetData({ weapons: next }); }} disabled={!canEdit} />
                     Владение
@@ -343,6 +347,12 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
                   <select value={w.ability ?? 'strength'} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), ability: e.target.value as AbilityKey }; updateSheetData({ weapons: next }); }} disabled={!canEdit} style={{ ...sheetStyle, width: 72 }}>
                     {ABILITY_KEYS.map((key) => (
                       <option key={key} value={key}>{ABILITY_LABELS[key]}</option>
+                    ))}
+                  </select>
+                  <select value={w.damageType ?? ''} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), damageType: (e.target.value || undefined) as WeaponDamageType | undefined }; updateSheetData({ weapons: next }); }} disabled={!canEdit} style={{ ...sheetStyle, width: 100 }} title="Тип урона для устойчивости/уязвимости">
+                    <option value="">— тип</option>
+                    {WEAPON_DAMAGE_TYPES.map((key) => (
+                      <option key={key} value={key}>{WEAPON_DAMAGE_TYPE_LABELS[key]}</option>
                     ))}
                   </select>
                   <input type="text" value={w.attackModifier ?? ''} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), attackModifier: e.target.value || undefined }; updateSheetData({ weapons: next }); }} disabled={!canEdit} placeholder="Бонус атаки (опц.)" style={{ ...sheetStyle, width: 110 }} title="Оставьте пустым — будет считаться по характеристике и владению" />

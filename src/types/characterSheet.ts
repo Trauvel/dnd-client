@@ -22,7 +22,7 @@ export interface CharacterSheetData {
   /** Список оружий: название, кубики урона (1d8, 2d6), владение, характеристика для броска */
   weapons?: {
     name: string;
-    /** Формула кубиков урона (игрок вводит сам), напр. 1d8, 2d6 */
+    /** Формула кубиков урона (игрок вводит сам), напр. 1к8, 2к6 (любая буква между числами: к, d, k) */
     damage: string;
     /** Бонус атаки вручную (если пусто — считается по характеристике + владение) */
     attackModifier?: string;
@@ -30,8 +30,21 @@ export interface CharacterSheetData {
     proficient?: boolean;
     /** По какой характеристике считать атаку и урон: Сил, Лов и т.д. */
     ability?: AbilityKey;
+    /** Тип урона (для устойчивости/уязвимости и лога) */
+    damageType?: WeaponDamageType;
   }[];
 }
+
+export const WEAPON_DAMAGE_TYPES = ['piercing', 'slashing', 'bludgeoning', 'other'] as const;
+export type WeaponDamageType = (typeof WEAPON_DAMAGE_TYPES)[number];
+
+/** Подписи типов урона для UI и лога */
+export const WEAPON_DAMAGE_TYPE_LABELS: Record<WeaponDamageType, string> = {
+  piercing: 'колющий',
+  slashing: 'рубящий',
+  bludgeoning: 'дробящий',
+  other: 'другой',
+};
 
 export const ABILITY_KEYS = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const;
 export type AbilityKey = (typeof ABILITY_KEYS)[number];

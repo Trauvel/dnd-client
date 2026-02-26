@@ -7,7 +7,7 @@ import { useAuth } from '../../store/authContext';
 import { getScenarios, getScenarioById, type Scenario } from '../../api/scenarios';
 import { getCharacterPortrait, getCharacterForView, updateCharacter, type CharacterViewResult, type Character } from '../../api/characters';
 import { getProficiencyBonus, xpToLevel } from '../../utils/dndLevel';
-import type { AbilityKey } from '../../types/characterSheet';
+import { type AbilityKey, WEAPON_DAMAGE_TYPE_LABELS } from '../../types/characterSheet';
 import { CharacterSheetView } from '../Character/CharacterSheetView';
 import type { CombatState, NpcInstance } from '../../api/socket';
 import { getScenarioNpcsForView, type ScenarioNpc } from '../../api/scenarioNpcs';
@@ -553,20 +553,23 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     const raw = myCharacter?.characterData as Record<string, unknown> | undefined;
     const list = raw?.weapons;
     if (!Array.isArray(list) || list.length === 0) return [];
+    const dmgTypes = ['piercing', 'slashing', 'bludgeoning', 'other'];
     return list.map((w: any) => ({
       name: typeof w?.name === 'string' ? w.name : 'Оружие',
       damage: typeof w?.damage === 'string' ? w.damage : '',
       attackModifier: typeof w?.attackModifier === 'string' ? w.attackModifier : undefined,
       proficient: !!w?.proficient,
       ability: (w?.ability && ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].includes(w.ability)) ? w.ability : 'strength' as AbilityKey,
+      damageType: (w?.damageType && dmgTypes.includes(w.damageType)) ? w.damageType : undefined as string | undefined,
     }));
   })();
 
   const safeWeaponIndex = weaponsFromSheet.length > 0 ? Math.min(selectedWeaponIndex, weaponsFromSheet.length - 1) : 0;
   const selectedWeapon = weaponsFromSheet[safeWeaponIndex] ?? null;
 
+  /** Парсит формулу кубиков: число + буква (к, d, k и т.д.) + число. Напр. 1к10, 2d6, 1к6 */
   const parseDamageDice = (s: string): { count: number; sides: number } | null => {
-    const m = /^(\d+)d(\d+)$/i.exec((s || '').trim());
+    const m = /^(\d+)\D+(\d+)$/.exec((s || '').trim());
     if (!m) return null;
     const count = Math.min(20, Math.max(1, parseInt(m[1], 10)));
     const sides = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100].includes(Number(m[2])) ? parseInt(m[2], 10) : 6;
@@ -594,7 +597,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     }
     const d20 = Math.floor(Math.random() * 20) + 1;
     const total = d20 + attackMod;
-    const formula = `Атака (${selectedWeapon.name}): ${total}`;
+    const typeLabel = selectedWeapon.damageType && WEAPON_DAMAGE_TYPE_LABELS[selectedWeapon.damageType as keyof typeof WEAPON_DAMAGE_TYPE_LABELS] ? `, ${WEAPON_DAMAGE_TYPE_LABELS[selectedWeapon.damageType as keyof typeof WEAPON_DAMAGE_TYPE_LABELS]}` : '';
+    const formula = `Атака (${selectedWeapon.name}${typeLabel}): ${total}`;
     socket.emit('dice:roll', { formula, result: [d20], total });
   };
 
@@ -603,14 +607,16 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     const parsed = parseDamageDice(selectedWeapon.damage);
     if (!parsed) {
       const fallback = rollDiceLocal(1, 6);
-      socket.emit('dice:roll', { formula: `Урон (${selectedWeapon.name}) 1d6: ${fallback.total}`, result: fallback.result, total: fallback.total });
+      const typeLabel = selectedWeapon.damageType && WEAPON_DAMAGE_TYPE_LABELS[selectedWeapon.damageType as keyof typeof WEAPON_DAMAGE_TYPE_LABELS] ? `, ${WEAPON_DAMAGE_TYPE_LABELS[selectedWeapon.damageType as keyof typeof WEAPON_DAMAGE_TYPE_LABELS]}` : '';
+      socket.emit('dice:roll', { formula: `Урон (${selectedWeapon.name}${typeLabel}) 1к6: ${fallback.total}`, result: fallback.result, total: fallback.total });
       return;
     }
     const abilityScore = getAbilityScore(myCharacter, selectedWeapon.ability);
     const abilityMod = getAbilityMod(abilityScore);
     const { result, total: diceTotal } = rollDiceLocal(parsed.count, parsed.sides);
     const total = diceTotal + abilityMod;
-    const formula = `Урон (${selectedWeapon.name}) ${selectedWeapon.damage}${abilityMod >= 0 ? '+' : ''}${abilityMod}: ${total}`;
+    const typeLabel = selectedWeapon.damageType && WEAPON_DAMAGE_TYPE_LABELS[selectedWeapon.damageType as keyof typeof WEAPON_DAMAGE_TYPE_LABELS] ? `, ${WEAPON_DAMAGE_TYPE_LABELS[selectedWeapon.damageType as keyof typeof WEAPON_DAMAGE_TYPE_LABELS]}` : '';
+    const formula = `Урон (${selectedWeapon.name}${typeLabel}) ${selectedWeapon.damage}${abilityMod >= 0 ? '+' : ''}${abilityMod}: ${total}`;
     socket.emit('dice:roll', { formula, result, total });
   };
 
