@@ -13,6 +13,7 @@ import {
 } from '../../api/masterBook';
 import { API_CONFIG } from '../../config';
 import { DraggableWindow } from './DraggableWindow';
+import { RichTextEditor, RichTextBody } from '../RichTextEditor';
 
 function generateId(): string {
   return `mb-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -426,10 +427,10 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                 </div>
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4 }}>Содержимое</label>
-                  <textarea
+                  <RichTextEditor
                     value={selectedNotesSection.body}
-                    onChange={(e) => updateNotesSection(selectedNotesSection.id, { body: e.target.value })}
-                    style={{ width: '100%', minHeight: 200, padding: 10, fontSize: 14, border: '1px solid #dee2e6', borderRadius: 8, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                    onChange={(html) => updateNotesSection(selectedNotesSection.id, { body: html })}
+                    minHeight={200}
                   />
                 </div>
                 <button
@@ -452,7 +453,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
               <div style={{ fontSize: 13, color: '#999', marginBottom: 12 }}>Выберите раздел слева или добавьте новый.</div>
             )}
             <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 10 }}>{title}</div>
-            <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55, marginBottom: 12 }}>{body || '—'}</div>
+            <RichTextBody html={body ?? ''} />
             {currentLocation && locationNotes && (
               <div style={{ marginBottom: 12 }}>
                 <button

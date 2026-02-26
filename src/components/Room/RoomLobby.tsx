@@ -5,7 +5,7 @@ import { pauseRoom, startGame, getRoomInfo } from '../../api/rooms';
 import { useSocket } from '../../store/socketContext';
 import { useAuth } from '../../store/authContext';
 import { getScenarios, getScenarioById, type Scenario } from '../../api/scenarios';
-import { getCharacterPortrait, getCharacterForView, type CharacterViewResult, type Character } from '../../api/characters';
+import { getCharacterPortrait, getCharacterForView, updateCharacter, type CharacterViewResult, type Character } from '../../api/characters';
 import { CharacterSheetView } from '../Character/CharacterSheetView';
 import type { CombatState, NpcInstance } from '../../api/socket';
 import { getScenarioNpcsForView, type ScenarioNpc } from '../../api/scenarioNpcs';
@@ -65,6 +65,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [bookOpen, setBookOpen] = useState(false);
   const [playerNotesBookOpen, setPlayerNotesBookOpen] = useState(false);
   const [imagePopup, setImagePopup] = useState<{ url: string; name: string } | null>(null);
+  const [hpUpdating, setHpUpdating] = useState(false);
 
   const isMaster = room && user && room.masterId === user.id;
   const masterState = GameState?.master;
@@ -522,6 +523,23 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
       role: p.role,
     }))
   ).filter((p) => p.role === 'player');
+  const myPlayer = displayPlayers.find((p) => p.userId === user?.id);
+  const myCharacter = myPlayer?.characterId && characterPreviews[myPlayer.characterId] ? characterPreviews[myPlayer.characterId] : null;
+
+  const handleHpChange = async (delta: number) => {
+    if (!myPlayer?.characterId || !myCharacter || hpUpdating) return;
+    const newHp = Math.max(0, Math.min(myCharacter.maxHp ?? 999, (myCharacter.hp ?? 0) + delta));
+    setHpUpdating(true);
+    try {
+      const updated = await updateCharacter(myPlayer.characterId, { hp: newHp }, roomCode);
+      setCharacterPreviews((prev) => ({ ...prev, [myPlayer.characterId!]: updated }));
+    } catch {
+      // ошибка — не обновляем локально
+    } finally {
+      setHpUpdating(false);
+    }
+  };
+
   const overlayAttachment =
     scenario?.attachments?.find((a) => a.id === activeAttachmentId) || null;
   const centerShowImage =
@@ -808,8 +826,60 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
               Бросить
             </button>
           </div>
+          {!isMaster && myCharacter && (
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '10px',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6',
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#495057', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Персонаж
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>
+                HP: {myCharacter.hp ?? 0} / {myCharacter.maxHp ?? 0}
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => handleHpChange(-5)}
+                  disabled={hpUpdating || (myCharacter.hp ?? 0) <= 0}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', background: '#dc3545', color: '#fff', fontSize: '13px', cursor: hpUpdating ? 'wait' : 'pointer', fontWeight: 600 }}
+                >
+                  −5
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleHpChange(-1)}
+                  disabled={hpUpdating || (myCharacter.hp ?? 0) <= 0}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', background: '#fd7e14', color: '#fff', fontSize: '13px', cursor: hpUpdating ? 'wait' : 'pointer', fontWeight: 600 }}
+                >
+                  −1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleHpChange(1)}
+                  disabled={hpUpdating}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', background: '#28a745', color: '#fff', fontSize: '13px', cursor: hpUpdating ? 'wait' : 'pointer', fontWeight: 600 }}
+                >
+                  +1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleHpChange(5)}
+                  disabled={hpUpdating}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', background: '#28a745', color: '#fff', fontSize: '13px', cursor: hpUpdating ? 'wait' : 'pointer', fontWeight: 600 }}
+                >
+                  +5
+                </button>
+              </div>
+            </div>
+          )}
           {diceLog.length > 0 && (
-            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: '10px' }}>
               {[...diceLog].reverse().map((entry, i) => (
                 <div
                   key={i}

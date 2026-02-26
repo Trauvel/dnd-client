@@ -9,6 +9,7 @@ import {
   type MasterBookData,
   type MasterBookSection,
 } from '../api/masterBook';
+import { RichTextEditor } from '../components/RichTextEditor';
 
 function generateId(): string {
   return `mb-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -348,23 +349,11 @@ const MasterBookPage: React.FC = () => {
                 >
                   Содержимое
                 </label>
-                <textarea
+                <RichTextEditor
                   value={selected.body}
-                  onChange={(e) => updateSection(selected.id, { body: e.target.value })}
-                  placeholder="Введите текст раздела..."
-                  style={{
-                    width: '100%',
-                    flex: 1,
-                    minHeight: 240,
-                    padding: 12,
-                    fontSize: 14,
-                    lineHeight: 1.5,
-                    border: '1px solid #dee2e6',
-                    borderRadius: 8,
-                    resize: 'vertical',
-                    boxSizing: 'border-box',
-                    fontFamily: 'inherit',
-                  }}
+                  onChange={(html) => updateSection(selected.id, { body: html })}
+                  placeholder="Введите текст раздела... Можно вставлять скриншоты (Ctrl+V)."
+                  minHeight={240}
                 />
               </div>
             </>
