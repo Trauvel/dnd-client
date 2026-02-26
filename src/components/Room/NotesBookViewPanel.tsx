@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getMasterBook, findSectionById, type MasterBookData, type MasterBookSection } from '../../api/masterBook';
 import { DraggableWindow } from './DraggableWindow';
+import { RichTextBody } from '../RichTextEditor';
 
 interface NotesBookViewPanelProps {
   onClose: () => void;
@@ -108,7 +109,7 @@ export const NotesBookViewPanel: React.FC<NotesBookViewPanelProps> = ({ onClose 
                 {selected && (
                   <>
                     <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 10 }}>{selected.title || '—'}</div>
-                    <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>{selected.body || '—'}</div>
+                    <RichTextBody html={selected.body ?? ''} />
                   </>
                 )}
               </main>
