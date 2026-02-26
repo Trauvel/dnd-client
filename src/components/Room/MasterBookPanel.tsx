@@ -13,6 +13,8 @@ import {
   getSiblingContext,
   getSectionAndDescendantIds,
   flattenSections,
+  sectionOrDescendantMatches,
+  getHighlightSegments,
   type MasterBookData,
   type MasterBookSection,
 } from '../../api/masterBook';
@@ -65,6 +67,17 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
   const [notesBookData, setNotesBookData] = useState<MasterBookData | null>(null);
   const [selectedNotesSectionId, setSelectedNotesSectionId] = useState<string | null>(null);
   const [notesSaving, setNotesSaving] = useState(false);
+  const [collapsedNotesIds, setCollapsedNotesIds] = useState<Set<string>>(new Set());
+  const [notesSearchQuery, setNotesSearchQuery] = useState('');
+
+  const toggleNotesSectionCollapsed = (id: string) => {
+    setCollapsedNotesIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (hasScenario && startId && !currentId && !selectedNotesSectionId) {
@@ -204,6 +217,15 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
           {/* Левая колонка — быстрые переходы */}
           <aside style={sideCol}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>Книга заметок</div>
+            {notesBookData && notesBookData.sections.length > 0 && (
+              <input
+                type="text"
+                placeholder="Поиск..."
+                value={notesSearchQuery}
+                onChange={(e) => setNotesSearchQuery(e.target.value)}
+                style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #dee2e6', borderRadius: 6, boxSizing: 'border-box', marginBottom: 8 }}
+              />
+            )}
             {!notesBookData ? (
               <div style={{ fontSize: 12, color: '#999' }}>Загрузка…</div>
             ) : notesBookData.sections.length === 0 ? (
@@ -211,10 +233,14 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
             ) : (
               (() => {
                 function renderNotesTree(sections: MasterBookSection[], depth: number) {
-                  return sections.map((sec) => {
+                  const filtered = sections.filter((s) => sectionOrDescendantMatches(s, notesSearchQuery));
+                  return filtered.map((sec) => {
                     const siblingCtx = notesBookData ? getSiblingContext(notesBookData.sections, sec.id) : null;
                     const canMoveUp = siblingCtx && siblingCtx.index > 0;
                     const canMoveDown = siblingCtx && siblingCtx.index < siblingCtx.siblings.length - 1;
+                    const hasChildren = (sec.children?.length ?? 0) > 0;
+                    const isCollapsed = collapsedNotesIds.has(sec.id);
+                    const titleSegments = notesSearchQuery.trim() ? getHighlightSegments(sec.title || '—', notesSearchQuery) : null;
                     return (
                       <div key={sec.id} style={{ marginBottom: 2 }}>
                         <div
@@ -227,6 +253,11 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                             background: selectedNotesSectionId === sec.id ? '#e7f1ff' : 'transparent',
                           }}
                         >
+                          {hasChildren ? (
+                            <button type="button" onClick={(e) => { e.stopPropagation(); toggleNotesSectionCollapsed(sec.id); }} title={isCollapsed ? 'Развернуть' : 'Свернуть'} style={{ padding: '2px 4px', border: 'none', background: 'none', cursor: 'pointer', color: '#666', fontSize: 10, lineHeight: 1, width: 16, textAlign: 'center' }}>{isCollapsed ? '▶' : '▼'}</button>
+                          ) : (
+                            <span style={{ width: 16, display: 'inline-block', textAlign: 'center', fontSize: 10, color: 'transparent' }}>·</span>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleSelectNotesSection(sec.id)}
@@ -243,7 +274,15 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                               cursor: 'pointer',
                             }}
                           >
-                            {sec.title || '—'}
+                            {titleSegments
+                              ? titleSegments.map((seg, i) =>
+                                  seg.type === 'match' ? (
+                                    <mark key={i} style={{ background: '#fff3cd', padding: '0 1px', borderRadius: 2 }}>{seg.value}</mark>
+                                  ) : (
+                                    seg.value
+                                  )
+                                )
+                              : (sec.title || '—')}
                           </button>
                           <button type="button" onClick={(e) => { e.stopPropagation(); reorderNotesSection(sec.id, 'up'); }} disabled={!canMoveUp} title="Выше" style={{ padding: '2px 4px', border: 'none', background: 'none', cursor: canMoveUp ? 'pointer' : 'not-allowed', color: canMoveUp ? '#495057' : '#ccc', fontSize: 11 }}>↑</button>
                           <button type="button" onClick={(e) => { e.stopPropagation(); reorderNotesSection(sec.id, 'down'); }} disabled={!canMoveDown} title="Ниже" style={{ padding: '2px 4px', border: 'none', background: 'none', cursor: canMoveDown ? 'pointer' : 'not-allowed', color: canMoveDown ? '#495057' : '#ccc', fontSize: 11 }}>↓</button>
@@ -264,7 +303,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                             ×
                           </button>
                         </div>
-                        {(sec.children?.length ?? 0) > 0 && <div style={{ marginTop: 2 }}>{renderNotesTree(sec.children!, depth + 1)}</div>}
+                        {hasChildren && !isCollapsed && <div style={{ marginTop: 2 }}>{renderNotesTree(sec.children!, depth + 1)}</div>}
                       </div>
                     );
                   });

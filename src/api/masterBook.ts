@@ -30,6 +30,55 @@ export function findSectionById(sections: MasterBookSection[], id: string): Mast
   return null;
 }
 
+/** Убрать HTML-теги из строки для поиска по тексту */
+export function stripHtml(html: string): string {
+  if (typeof html !== 'string') return '';
+  const div = typeof document !== 'undefined' ? document.createElement('div') : null;
+  if (div) {
+    div.innerHTML = html;
+    return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+  }
+  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Текст раздела для поиска: заголовок + содержимое без HTML */
+function getSectionSearchText(section: MasterBookSection): string {
+  const title = (section.title || '').trim();
+  const body = stripHtml(section.body || '');
+  return `${title} ${body}`.toLowerCase();
+}
+
+/** Проверяет, совпадает ли раздел с поисковым запросом (все слова из запроса должны встречаться, порядок любой) */
+export function sectionMatchesSearch(section: MasterBookSection, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const words = q.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const text = getSectionSearchText(section);
+  return words.every((word) => text.includes(word));
+}
+
+/** Раздел или любой из потомков совпадает с запросом */
+export function sectionOrDescendantMatches(section: MasterBookSection, query: string): boolean {
+  if (sectionMatchesSearch(section, query)) return true;
+  for (const ch of section.children ?? []) {
+    if (sectionOrDescendantMatches(ch, query)) return true;
+  }
+  return false;
+}
+
+/** Сегменты строки для подсветки: массив { type: 'text'|'match', value } */
+export function getHighlightSegments(text: string, query: string): Array<{ type: 'text' | 'match'; value: string }> {
+  const q = query.trim();
+  if (!q || !text) return [{ type: 'text' as const, value: text }];
+  const words = q.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [{ type: 'text' as const, value: text }];
+  const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const re = new RegExp(`(${escaped.join('|')})`, 'gi');
+  const parts = text.split(re);
+  return parts.map((p, i) => ({ type: i % 2 === 1 ? ('match' as const) : ('text' as const), value: p }));
+}
+
 /** Все секции дерева в плоский список (для совместимости) */
 export function flattenSections(sections: MasterBookSection[]): MasterBookSection[] {
   const out: MasterBookSection[] = [];

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getMasterBook, findSectionById, type MasterBookData, type MasterBookSection } from '../../api/masterBook';
+import { getMasterBook, findSectionById, sectionOrDescendantMatches, getHighlightSegments, type MasterBookData, type MasterBookSection } from '../../api/masterBook';
 import { DraggableWindow } from './DraggableWindow';
 import { RichTextBody } from '../RichTextEditor';
 
@@ -13,6 +13,17 @@ export const NotesBookViewPanel: React.FC<NotesBookViewPanelProps> = ({ onClose 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const toggleCollapsed = (id: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -68,39 +79,73 @@ export const NotesBookViewPanel: React.FC<NotesBookViewPanelProps> = ({ onClose 
                   padding: 12,
                   overflowY: 'auto',
                   background: '#f8f9fa',
+                  overflow: 'scroll'
                 }}
               >
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>
                   Разделы
                 </div>
+                <input
+                  type="text"
+                  placeholder="Поиск по заголовку и тексту..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #dee2e6', borderRadius: 6, boxSizing: 'border-box', marginBottom: 8 }}
+                />
                 {(() => {
                   function renderTree(sections: MasterBookSection[], depth: number) {
-                    return sections.map((s) => (
-                      <div key={s.id} style={{ marginBottom: 2 }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedId(s.id)}
-                          style={{
-                            display: 'block',
-                            width: '100%',
-                            textAlign: 'left',
-                            padding: '6px 8px',
-                            paddingLeft: 8 + depth * 12,
-                            marginBottom: 2,
-                            border: 'none',
-                            borderRadius: 6,
-                            background: selectedId === s.id ? '#e7f1ff' : 'transparent',
-                            color: selectedId === s.id ? '#0d6efd' : '#333',
-                            fontWeight: selectedId === s.id ? 600 : 400,
-                            fontSize: depth === 0 ? 13 : 12,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {s.title || '—'}
-                        </button>
-                        {(s.children?.length ?? 0) > 0 && renderTree(s.children ?? [], depth + 1)}
-                      </div>
-                    ));
+                    const filtered = sections.filter((s) => sectionOrDescendantMatches(s, searchQuery));
+                    return filtered.map((s) => {
+                      const hasChildren = (s.children?.length ?? 0) > 0;
+                      const isCollapsed = collapsedIds.has(s.id);
+                      const titleSegments = searchQuery.trim() ? getHighlightSegments(s.title || '—', searchQuery) : null;
+                      return (
+                        <div key={s.id} style={{ marginBottom: 2 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingLeft: depth * 12 }}>
+                            {hasChildren ? (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleCollapsed(s.id); }}
+                                title={isCollapsed ? 'Развернуть' : 'Свернуть'}
+                                style={{ padding: '2px 4px', border: 'none', background: 'none', cursor: 'pointer', color: '#666', fontSize: 10, lineHeight: 1, flexShrink: 0 }}
+                              >
+                                {isCollapsed ? '▶' : '▼'}
+                              </button>
+                            ) : (
+                              <span style={{ width: 14, display: 'inline-block', textAlign: 'center', fontSize: 10, color: 'transparent' }}>·</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedId(s.id)}
+                              style={{
+                                flex: 1,
+                                textAlign: 'left',
+                                padding: '6px 8px',
+                                marginBottom: 2,
+                                border: 'none',
+                                borderRadius: 6,
+                                background: selectedId === s.id ? '#e7f1ff' : 'transparent',
+                                color: selectedId === s.id ? '#0d6efd' : '#333',
+                                fontWeight: selectedId === s.id ? 600 : 400,
+                                fontSize: depth === 0 ? 13 : 12,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {titleSegments
+                                ? titleSegments.map((seg, i) =>
+                                    seg.type === 'match' ? (
+                                      <mark key={i} style={{ background: '#fff3cd', padding: '0 1px', borderRadius: 2 }}>{seg.value}</mark>
+                                    ) : (
+                                      seg.value
+                                    )
+                                  )
+                                : (s.title || '—')}
+                            </button>
+                          </div>
+                          {hasChildren && !isCollapsed && renderTree(s.children ?? [], depth + 1)}
+                        </div>
+                      );
+                    });
                   }
                   return renderTree(data.sections, 0);
                 })()}

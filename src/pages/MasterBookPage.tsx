@@ -11,6 +11,8 @@ import {
   getSiblingContext,
   getSectionAndDescendantIds,
   flattenSections,
+  sectionOrDescendantMatches,
+  getHighlightSegments,
   type MasterBookData,
   type MasterBookSection,
 } from '../api/masterBook';
@@ -29,6 +31,17 @@ const MasterBookPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [collapsedSectionIds, setCollapsedSectionIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const toggleSectionCollapsed = (id: string) => {
+    setCollapsedSectionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
     load();
@@ -206,16 +219,36 @@ const MasterBookPage: React.FC = () => {
           <div style={{ fontSize: 12, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>
             Разделы
           </div>
+          {data.sections.length > 0 && (
+            <input
+              type="text"
+              placeholder="Поиск по заголовку и тексту..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                fontSize: 13,
+                border: '1px solid #dee2e6',
+                borderRadius: 8,
+                boxSizing: 'border-box',
+              }}
+            />
+          )}
           {data.sections.length === 0 ? (
             <div style={{ fontSize: 13, color: '#999' }}>
               Разделов пока нет. Добавьте готовые или создайте свой.
             </div>
           ) : (
-            (function renderSectionList(sections: MasterBookSection[], depth: number) {
-              return sections.map((s) => {
+            (function renderSectionList(sections: MasterBookSection[], depth: number): React.ReactNode[] {
+              const filtered = sections.filter((s) => sectionOrDescendantMatches(s, searchQuery));
+              return filtered.flatMap((s) => {
                 const siblingCtx = getSiblingContext(data.sections, s.id);
                 const canMoveUp = siblingCtx && siblingCtx.index > 0;
                 const canMoveDown = siblingCtx && siblingCtx.index < siblingCtx.siblings.length - 1;
+                const hasChildren = (s.children?.length ?? 0) > 0;
+                const isCollapsed = collapsedSectionIds.has(s.id);
+                const titleSegments = searchQuery.trim() ? getHighlightSegments(s.title || '—', searchQuery) : null;
                 return (
                   <div key={s.id} style={{ marginBottom: 2 }}>
                     <div
@@ -228,6 +261,29 @@ const MasterBookPage: React.FC = () => {
                         paddingLeft: depth * 12,
                       }}
                     >
+                      {hasChildren ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); toggleSectionCollapsed(s.id); }}
+                          title={isCollapsed ? 'Развернуть' : 'Свернуть'}
+                          style={{
+                            padding: '4px 6px',
+                            border: 'none',
+                            borderRadius: 4,
+                            background: isCollapsed ? 'transparent' : '#e9ecef',
+                            cursor: 'pointer',
+                            color: '#495057',
+                            fontSize: 11,
+                            lineHeight: 1,
+                            minWidth: 22,
+                            textAlign: 'center',
+                          }}
+                        >
+                          {isCollapsed ? '▶' : '▼'}
+                        </button>
+                      ) : (
+                        <span style={{ width: 22, minWidth: 22, display: 'inline-block', textAlign: 'center', fontSize: 11, color: 'transparent' }}>·</span>
+                      )}
                       <button
                         type="button"
                         onClick={() => setSelectedId(s.id)}
@@ -244,7 +300,17 @@ const MasterBookPage: React.FC = () => {
                           color: selectedId === s.id ? '#0d6efd' : '#333',
                         }}
                       >
-                        {s.title || '—'}
+                        {titleSegments
+                          ? titleSegments.map((seg, i) =>
+                              seg.type === 'match' ? (
+                                <mark key={i} style={{ background: '#fff3cd', padding: '0 1px', borderRadius: 2 }}>
+                                  {seg.value}
+                                </mark>
+                              ) : (
+                                seg.value
+                              )
+                            )
+                          : (s.title || '—')}
                       </button>
                       <button
                         type="button"
@@ -313,7 +379,7 @@ const MasterBookPage: React.FC = () => {
                         ×
                       </button>
                     </div>
-                    {(s.children?.length ?? 0) > 0 && (
+                    {hasChildren && !isCollapsed && (
                       <div style={{ marginTop: 2 }}>{renderSectionList(s.children!, depth + 1)}</div>
                     )}
                   </div>
