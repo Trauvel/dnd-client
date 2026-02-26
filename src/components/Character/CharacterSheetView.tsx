@@ -11,6 +11,7 @@ import {
   WEAPON_DAMAGE_TYPES,
   WEAPON_DAMAGE_TYPE_LABELS,
   type WeaponDamageType,
+  CONDITION_OPTIONS,
 } from '../../types/characterSheet';
 import '../../pages/PlayerPage.css';
 
@@ -325,6 +326,35 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
                 )}
               </tbody>
             </table>
+          </div>
+          <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Состояния</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+              {CONDITION_OPTIONS.map((opt) => {
+                const checked = (sheetData.conditions ?? []).includes(opt.key);
+                return (
+                  <label key={opt.key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: canEdit ? 'pointer' : 'default' }}>
+                    <input type="checkbox" checked={checked} onChange={(e) => { const next = e.target.checked ? [...(sheetData.conditions ?? []), opt.key] : (sheetData.conditions ?? []).filter((c) => c !== opt.key); updateSheetData({ conditions: next }); }} disabled={!canEdit} />
+                    {opt.label}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Слоты заклинаний</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+              {([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((lv) => {
+                const slot = (sheetData.spellSlots ?? []).find((s) => s.level === lv) ?? { level: lv, total: 0, used: 0 };
+                const roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][lv - 1];
+                return (
+                  <div key={lv} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 12, minWidth: 20 }}>{roman}</span>
+                    <input type="number" min={0} value={slot.total} onChange={(e) => { const v = parseInt(e.target.value, 10) || 0; const slots = [...(sheetData.spellSlots ?? [])]; const i = slots.findIndex((s) => s.level === lv); if (i >= 0) slots[i] = { ...slots[i], total: v }; else slots.push({ level: lv, total: v, used: 0 }); slots.sort((a, b) => a.level - b.level); updateSheetData({ spellSlots: slots }); }} disabled={!canEdit} style={{ ...sheetStyle, width: 40 }} title="Всего" />
+                    <span style={{ fontSize: 12 }}>/</span>
+                    <input type="number" min={0} value={slot.used} onChange={(e) => { const v = Math.max(0, parseInt(e.target.value, 10) || 0); const slots = [...(sheetData.spellSlots ?? [])]; const i = slots.findIndex((s) => s.level === lv); const entry = i >= 0 ? slots[i] : { level: lv, total: 0, used: 0 }; const nextSlots = i >= 0 ? slots : [...slots, entry]; const j = nextSlots.findIndex((s) => s.level === lv); nextSlots[j] = { ...nextSlots[j], used: Math.min(v, nextSlots[j].total) }; nextSlots.sort((a, b) => a.level - b.level); updateSheetData({ spellSlots: nextSlots }); }} disabled={!canEdit} style={{ ...sheetStyle, width: 40 }} title="Потрачено" />
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <div><label style={labelStyle}>Валюта (ММ, СМ, ЗМ, ПМ, МД)</label>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>

@@ -19,6 +19,10 @@ export interface CharacterSheetData {
   flaws?: string;
   featuresTraits?: string;
   equipment?: string;
+  /** Активные состояния персонажа (концентрация, отравлен и т.д.) — мастер видит в панели */
+  conditions?: string[];
+  /** Слоты заклинаний по уровням (1–9) */
+  spellSlots?: { level: number; total: number; used: number }[];
   /** Список оружий: название, кубики урона (1d8, 2d6), владение, характеристика для броска */
   weapons?: {
     name: string;
@@ -102,4 +106,15 @@ export const DEFAULT_SHEET_DATA: CharacterSheetData = {
   featuresTraits: '',
   equipment: '',
   weapons: [],
+  conditions: [],
+  spellSlots: [],
 };
+
+/** Предустановленные состояния для чекбоксов */
+export const CONDITION_OPTIONS: { key: string; label: string }[] = [
+  { key: 'concentration', label: 'Концентрация' },
+  { key: 'poisoned', label: 'Отравлен' },
+  { key: 'restrained', label: 'Сдержан' },
+  { key: 'frightened', label: 'Испуган' },
+  { key: 'incapacitated', label: 'Недееспособен' },
+];

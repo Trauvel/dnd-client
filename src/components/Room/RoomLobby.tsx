@@ -7,12 +7,13 @@ import { useAuth } from '../../store/authContext';
 import { getScenarios, getScenarioById, type Scenario } from '../../api/scenarios';
 import { getCharacterPortrait, getCharacterForView, updateCharacter, type CharacterViewResult, type Character } from '../../api/characters';
 import { getProficiencyBonus, xpToLevel } from '../../utils/dndLevel';
-import { type AbilityKey, WEAPON_DAMAGE_TYPE_LABELS } from '../../types/characterSheet';
+import { type AbilityKey, WEAPON_DAMAGE_TYPE_LABELS, DND_SKILLS, ABILITY_KEYS, ABILITY_LABELS, CONDITION_OPTIONS } from '../../types/characterSheet';
 import { CharacterSheetView } from '../Character/CharacterSheetView';
 import type { CombatState, NpcInstance } from '../../api/socket';
 import { getScenarioNpcsForView, type ScenarioNpc } from '../../api/scenarioNpcs';
 import { MasterBookPanel } from './MasterBookPanel';
 import { NotesBookViewPanel } from './NotesBookViewPanel';
+import { DraggableWindow } from './DraggableWindow';
 
 const DICE_SIDES = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100];
 
@@ -60,6 +61,9 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [npcDetail, setNpcDetail] = useState<ScenarioNpc | null>(null);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [audioLoop, setAudioLoop] = useState(false);
+  const [audioVolume, setAudioVolume] = useState(0.5);
+  const audioVolumeRef = useRef(0.5);
+  const [logWindowOpen, setLogWindowOpen] = useState(false);
   const roomAudioRefs = useRef<Record<string, HTMLAudioElement>>({});
   const roomAudioRef = useRef<HTMLAudioElement | null>(null);
   const roomAudioEndedHandlerRef = useRef<(() => void) | null>(null);
@@ -69,6 +73,10 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [imagePopup, setImagePopup] = useState<{ url: string; name: string } | null>(null);
   const [hpUpdating, setHpUpdating] = useState(false);
   const [selectedWeaponIndex, setSelectedWeaponIndex] = useState(0);
+  const [selectedSkillKey, setSelectedSkillKey] = useState('');
+  const [selectedSaveAbility, setSelectedSaveAbility] = useState<AbilityKey>('strength');
+  const [conditionsUpdating, setConditionsUpdating] = useState(false);
+  const [spellSlotsUpdating, setSpellSlotsUpdating] = useState(false);
 
   const isMaster = room && user && room.masterId === user.id;
   const masterState = GameState?.master;
@@ -227,6 +235,13 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
 
     socket.on('dice:result', handleDiceResult);
 
+    const handleCharacterPreviewUpdate = (data: { character: Character }) => {
+      if (data?.character?.id) {
+        setCharacterPreviews((prev) => ({ ...prev, [data.character.id]: data.character }));
+      }
+    };
+    socket.on('character:preview-update', handleCharacterPreviewUpdate);
+
     const handleAudioPlay = (data: { url: string; loop: boolean; id: string }) => {
       let el = roomAudioRef.current;
       if (!el) {
@@ -249,6 +264,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
       el.src = data.url;
       el.loop = data.loop;
       el.currentTime = 0;
+      el.volume = audioVolumeRef.current;
       roomAudioEndedHandlerRef.current = () => {
         if (!el.loop) setPlayingAudioId(null);
       };
@@ -283,6 +299,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     return () => {
       if (diceOverlayTimeoutRef.current) clearTimeout(diceOverlayTimeoutRef.current);
       socket.off('dice:result', handleDiceResult);
+      socket.off('character:preview-update', handleCharacterPreviewUpdate);
       socket.off('room:joined', handleRoomJoined);
       socket.off('room:player-joined', handlePlayerJoined);
       socket.off('room:player-left', handlePlayerLeft);
@@ -346,6 +363,13 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
       roomAudioRefs.current = {};
     };
   }, [scenarioAudioIdsKey, scenario?.audios]);
+
+  useEffect(() => {
+    audioVolumeRef.current = audioVolume;
+    const el = roomAudioRef.current;
+    if (el) el.volume = audioVolume;
+    if (fallbackAudioRef.current) fallbackAudioRef.current.volume = audioVolume;
+  }, [audioVolume]);
 
   const portraitCharacterIdsKey = useMemo(
     () =>
@@ -536,6 +560,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     try {
       const updated = await updateCharacter(myPlayer.characterId, { hp: newHp }, roomCode);
       setCharacterPreviews((prev) => ({ ...prev, [myPlayer.characterId!]: updated }));
+      socket?.emit('character:preview-update', { character: updated });
     } catch {
       // ошибка — не обновляем локально
     } finally {
@@ -602,6 +627,85 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     socket.emit('dice:roll', { formula, result: [d20], total });
   };
 
+  const sheetData = (() => {
+    const raw = myCharacter?.characterData as Record<string, unknown> | undefined;
+    if (!raw || typeof raw !== 'object') return null;
+    return {
+      skillProficiencies: (raw.skillProficiencies as string[] | undefined) ?? [],
+      savingThrowProficiencies: (raw.savingThrowProficiencies as string[] | undefined) ?? [],
+      conditions: (raw.conditions as string[] | undefined) ?? [],
+      spellSlots: (raw.spellSlots as { level: number; total: number; used: number }[] | undefined) ?? [],
+    };
+  })();
+
+  const handleSkillCheck = () => {
+    if (!socket || !myCharacter || !selectedSkillKey) return;
+    const skill = DND_SKILLS.find((s) => s.key === selectedSkillKey);
+    if (!skill) return;
+    const level = xpToLevel(myCharacter.experience ?? 0);
+    const profBonus = getProficiencyBonus(level);
+    const abilityScore = getAbilityScore(myCharacter, skill.ability);
+    const abilityMod = getAbilityMod(abilityScore);
+    const proficient = sheetData?.skillProficiencies?.includes(skill.key) ?? false;
+    const mod = abilityMod + (proficient ? profBonus : 0);
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const total = d20 + mod;
+    const formula = `Проверка (${skill.name}): ${total}`;
+    socket.emit('dice:roll', { formula, result: [d20], total });
+  };
+
+  const handleSavingThrow = () => {
+    if (!socket || !myCharacter) return;
+    const level = xpToLevel(myCharacter.experience ?? 0);
+    const profBonus = getProficiencyBonus(level);
+    const abilityScore = getAbilityScore(myCharacter, selectedSaveAbility);
+    const abilityMod = getAbilityMod(abilityScore);
+    const proficient = sheetData?.savingThrowProficiencies?.includes(selectedSaveAbility) ?? false;
+    const mod = abilityMod + (proficient ? profBonus : 0);
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const total = d20 + mod;
+    const formula = `Спасбросок (${ABILITY_LABELS[selectedSaveAbility]}): ${total}`;
+    socket.emit('dice:roll', { formula, result: [d20], total });
+  };
+
+  const handleConditionToggle = async (key: string, checked: boolean) => {
+    if (!myPlayer?.characterId || !myCharacter || conditionsUpdating) return;
+    const current = (myCharacter.characterData as Record<string, unknown>) ?? {};
+    const list: string[] = Array.isArray(current.conditions) ? [...(current.conditions as string[])] : [];
+    const next = checked ? (list.includes(key) ? list : [...list, key]) : list.filter((c) => c !== key);
+    setConditionsUpdating(true);
+    try {
+      const updated = await updateCharacter(myPlayer.characterId, { characterData: { ...current, conditions: next } }, roomCode);
+      setCharacterPreviews((prev) => ({ ...prev, [myPlayer.characterId!]: updated }));
+      socket?.emit('character:preview-update', { character: updated });
+    } catch {
+      // ignore
+    } finally {
+      setConditionsUpdating(false);
+    }
+  };
+
+  const handleSpendSpellSlot = async (level: number) => {
+    if (!myPlayer?.characterId || !myCharacter || spellSlotsUpdating) return;
+    const raw = (myCharacter.characterData as Record<string, unknown>) ?? {};
+    const slots: { level: number; total: number; used: number }[] = Array.isArray(raw.spellSlots) ? [...(raw.spellSlots as { level: number; total: number; used: number }[])] : [];
+    const idx = slots.findIndex((s) => s.level === level);
+    if (idx < 0) return;
+    const slot = slots[idx];
+    if (slot.used >= slot.total) return;
+    const nextSlots = slots.map((s, i) => (i === idx ? { ...s, used: s.used + 1 } : s));
+    setSpellSlotsUpdating(true);
+    try {
+      const updated = await updateCharacter(myPlayer.characterId, { characterData: { ...raw, spellSlots: nextSlots } }, roomCode);
+      setCharacterPreviews((prev) => ({ ...prev, [myPlayer.characterId!]: updated }));
+      socket?.emit('character:preview-update', { character: updated });
+    } catch {
+      // ignore
+    } finally {
+      setSpellSlotsUpdating(false);
+    }
+  };
+
   const handleWeaponDamage = () => {
     if (!socket || !myCharacter || !selectedWeapon) return;
     const parsed = parseDamageDice(selectedWeapon.damage);
@@ -662,6 +766,21 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           </span>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setLogWindowOpen(true)}
+            style={{
+              padding: '8px 16px',
+              background: '#6f42c1',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            Логи
+          </button>
           {isMaster && (
             <>
               {!room.gameStarted && (
@@ -1008,26 +1127,157 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
               </div>
             </div>
           )}
-          {diceLog.length > 0 && (
-            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: '10px' }}>
-              {[...diceLog].reverse().map((entry, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: '6px 8px',
-                    marginBottom: '4px',
-                    background: '#f8f9fa',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    color: '#333',
-                  }}
+          {!isMaster && myCharacter && (
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '10px',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6',
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#495057', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Проверка навыка
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <select
+                  value={selectedSkillKey}
+                  onChange={(e) => setSelectedSkillKey(e.target.value)}
+                  style={{ flex: 1, minWidth: '100px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ced4da', fontSize: '12px', boxSizing: 'border-box' }}
                 >
-                  <strong>{entry.username}</strong>: {entry.formula} → {entry.result.join(', ')} ={' '}
-                  <strong>{entry.total}</strong>
-                </div>
-              ))}
+                  <option value="">— навык</option>
+                  {DND_SKILLS.map((s) => (
+                    <option key={s.key} value={s.key}>{s.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSkillCheck}
+                  disabled={!socket || !selectedSkillKey}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', background: socket && selectedSkillKey ? '#17a2b8' : '#adb5bd', color: '#fff', fontSize: '12px', cursor: socket && selectedSkillKey ? 'pointer' : 'not-allowed', fontWeight: 600 }}
+                >
+                  Бросок
+                </button>
+              </div>
             </div>
           )}
+          {!isMaster && myCharacter && (
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '10px',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6',
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#495057', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Спасбросок
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <select
+                  value={selectedSaveAbility}
+                  onChange={(e) => setSelectedSaveAbility(e.target.value as AbilityKey)}
+                  style={{ flex: 1, minWidth: '80px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ced4da', fontSize: '12px', boxSizing: 'border-box' }}
+                >
+                  {ABILITY_KEYS.map((key) => (
+                    <option key={key} value={key}>{ABILITY_LABELS[key]}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSavingThrow}
+                  disabled={!socket}
+                  style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', background: socket ? '#17a2b8' : '#adb5bd', color: '#fff', fontSize: '12px', cursor: socket ? 'pointer' : 'not-allowed', fontWeight: 600 }}
+                >
+                  Бросок
+                </button>
+              </div>
+            </div>
+          )}
+          {!isMaster && myCharacter && (
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '10px',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6',
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#495057', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Состояния
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {CONDITION_OPTIONS.map((opt) => {
+                  const checked = sheetData?.conditions?.includes(opt.key) ?? false;
+                  return (
+                    <label key={opt.key} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', cursor: conditionsUpdating ? 'wait' : 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => handleConditionToggle(opt.key, e.target.checked)}
+                        disabled={conditionsUpdating}
+                      />
+                      {opt.label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {!isMaster && myCharacter && (sheetData?.spellSlots?.filter((s) => s.total > 0)?.length ?? 0) > 0 && (
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '10px',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6',
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#495057', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Слоты заклинаний
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                {(sheetData!.spellSlots!.filter((s) => s.total > 0)).map((slot) => {
+                  const roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][slot.level - 1] ?? String(slot.level);
+                  const canSpend = slot.used < slot.total && !spellSlotsUpdating;
+                  return (
+                    <div key={slot.level} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                      <span style={{ minWidth: '48px' }}>{roman}: {slot.total - slot.used}/{slot.total}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSpendSpellSlot(slot.level)}
+                        disabled={!canSpend}
+                        style={{ padding: '2px 8px', borderRadius: '4px', border: 'none', background: canSpend ? '#6f42c1' : '#adb5bd', color: '#fff', fontSize: '11px', cursor: canSpend ? 'pointer' : 'not-allowed' }}
+                      >
+                        −1
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setLogWindowOpen(true)}
+            style={{
+              marginTop: '10px',
+              padding: '8px 12px',
+              width: '100%',
+              border: '1px solid #dee2e6',
+              borderRadius: '6px',
+              background: '#f8f9fa',
+              fontSize: '13px',
+              cursor: 'pointer',
+              color: '#495057',
+            }}
+          >
+            Логи {diceLog.length > 0 ? `(${diceLog.length})` : ''}
+          </button>
         </aside>
 
         {/* Центр — показ вложения или зона боя */}
@@ -1387,6 +1637,22 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   </h3>
                   {isMaster ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0' }}>
+                        <span style={{ fontSize: '12px', color: 'black', minWidth: '70px' }}>Громкость</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={Math.round(audioVolume * 100)}
+                          onChange={(e) => {
+                            const v = Number(e.target.value) / 100;
+                            setAudioVolume(v);
+                            audioVolumeRef.current = v;
+                          }}
+                          style={{ flex: 1, accentColor: '#28a745' }}
+                        />
+                        <span style={{ fontSize: '11px', color: '#666', width: '28px' }}>{Math.round(audioVolume * 100)}%</span>
+                      </div>
                       {(scenario?.audios ?? []).map((a) => {
                         const name = a.displayName ?? a.fileName;
                         const isPlaying = playingAudioId === a.id;
@@ -1460,7 +1726,23 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                         color: '#333',
                       }}
                     >
-                      Играет: {(scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.displayName ?? (scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.fileName ?? '—'}
+                      <div style={{ marginBottom: '6px' }}>Играет: {(scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.displayName ?? (scenario?.audios ?? []).find((a) => a.id === playingAudioId)?.fileName ?? '—'}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', minWidth: '58px' }}>Громкость</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={Math.round(audioVolume * 100)}
+                          onChange={(e) => {
+                            const v = Number(e.target.value) / 100;
+                            setAudioVolume(v);
+                            audioVolumeRef.current = v;
+                          }}
+                          style={{ flex: 1, accentColor: '#28a745' }}
+                        />
+                        <span style={{ fontSize: '11px', color: '#666', width: '28px' }}>{Math.round(audioVolume * 100)}%</span>
+                      </div>
                     </div>
                   ) : (
                     <div style={{ fontSize: '12px', color: '#666' }}>Мастер включит аудио</div>
@@ -1720,6 +2002,19 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   <div style={{ fontSize: '13px', color: 'black' }}>
                     HP: {hp}/{maxHp}
                   </div>
+                  {(() => {
+                    const cd = ch?.characterData as Record<string, unknown> | undefined;
+                    const conditions = (Array.isArray(cd?.conditions) ? cd.conditions as string[] : []) as string[];
+                    if (conditions.length === 0) return null;
+                    const labels = conditions.map((key) => CONDITION_OPTIONS.find((o) => o.key === key)?.label ?? key);
+                    return (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'center', marginTop: '4px' }}>
+                        {labels.map((l) => (
+                          <span key={l} style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: '#e7f1ff', color: '#0d6efd' }}>{l}</span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -2285,6 +2580,33 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
 
       {playerNotesBookOpen && (
         <NotesBookViewPanel onClose={() => setPlayerNotesBookOpen(false)} />
+      )}
+
+      {logWindowOpen && (
+        <DraggableWindow title="Логи" onClose={() => setLogWindowOpen(false)} width={420} maxHeight="70vh">
+          <div style={{ padding: '12px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            {diceLog.length === 0 ? (
+              <div style={{ color: '#999', fontSize: '13px' }}>Пока нет бросков</div>
+            ) : (
+              [...diceLog].reverse().map((entry, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '8px 10px',
+                    marginBottom: '6px',
+                    background: '#f8f9fa',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#333',
+                  }}
+                >
+                  <strong>{entry.username}</strong>: {entry.formula} → {entry.result.join(', ')} ={' '}
+                  <strong>{entry.total}</strong>
+                </div>
+              ))
+            )}
+          </div>
+        </DraggableWindow>
       )}
 
       {imagePopup && (
