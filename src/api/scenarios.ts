@@ -18,10 +18,10 @@ export interface ScenarioScriptLocation {
   notes?: string;
   npcIds?: string[];
   order?: number;
-  /** id файла сценария (kind: audio) — аудио для локации */
-  audioId?: string | null;
-  /** id вложения сценария (карта локации) — показывается в игре при выборе локации */
-  mapFileId?: string | null;
+  /** id файлов сценария (kind: audio) — аудио для локации (несколько треков) */
+  audioIds?: string[];
+  /** id вложений сценария (карты/изображения локации) — показываются в игре при выборе локации */
+  mapFileIds?: string[];
 }
 
 export interface ScenarioScriptSituation {

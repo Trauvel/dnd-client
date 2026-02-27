@@ -85,6 +85,13 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const combat: CombatState | undefined = masterState?.combat;
   const npcs: NpcInstance[] = masterState?.npcs ?? [];
   const hasBattleView = npcs.length > 0 || (combat && (combat.active || combat.order.length > 0));
+  const tacticsMode = masterState?.tacticsMode ?? false;
+  const tokenPositions = masterState?.tokenPositions ?? {};
+  const tokenScale = masterState?.tokenScale ?? 1;
+  const [draggingTokenKey, setDraggingTokenKey] = useState<string | null>(null);
+  const [tokenTempPosition, setTokenTempPosition] = useState<{ x: number; y: number } | null>(null);
+  const tacticsMapRef = useRef<HTMLDivElement>(null);
+  const tokenDragPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const openCharacterSheet = (characterId: string | undefined) => {
     if (!characterId) {
@@ -435,6 +442,35 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     };
   }, []);
 
+  // Драг токена на тактической карте (мастер — любой токен, игрок — только свой)
+  const canDragToken = (key: string) => isMaster || key === `pc-${user?.id}`;
+  useEffect(() => {
+    if (!draggingTokenKey || !sendAction) return;
+    if (!canDragToken(draggingTokenKey)) return;
+    const onMove = (e: MouseEvent) => {
+      const el = tacticsMapRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+      tokenDragPosRef.current = { x, y };
+      setTokenTempPosition({ x, y });
+    };
+    const onUp = () => {
+      const pos = tokenDragPosRef.current;
+      if (pos && draggingTokenKey) sendAction('tactics:moveToken', { tokenKey: draggingTokenKey, x: pos.x, y: pos.y });
+      tokenDragPosRef.current = null;
+      setDraggingTokenKey(null);
+      setTokenTempPosition(null);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [draggingTokenKey, sendAction, isMaster, user?.id]);
+
   const getModifier = (n: number) => (Math.floor((n - 10) / 2) >= 0 ? `+${Math.floor((n - 10) / 2)}` : `${Math.floor((n - 10) / 2)}`);
 
   const loadRoomInfo = async () => {
@@ -743,6 +779,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   };
 
   const participantKey = (p: { kind: string; id: string }) => `${p.kind}-${p.id}`;
+
   const handleCombatParticipantHp = (p: import('../../api/socket').CombatParticipant, delta: number) => {
     if (!sendAction || !combat?.order) return;
     const currentHp = p.hp ?? 0;
@@ -1342,7 +1379,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           </button>
         </aside>
 
-        {/* Центр — показ вложения или зона боя */}
+        {/* Центр — режим тактики (карта + токены) или зона боя или вложение */}
         <section
           style={{
             flex: 1,
@@ -1350,13 +1387,83 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: centerShowImage ? '#1a1a1a' : '#e9ecef',
+            background: (tacticsMode && centerShowImage) || centerShowImage ? '#1a1a1a' : '#e9ecef',
             padding: '16px',
           }}
         >
-          {hasBattleView ? (
+          {tacticsMode && centerShowImage && overlayAttachment ? (
+            <div
+              ref={tacticsMapRef}
+              style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: 800,
+                aspectRatio: '4/3',
+                maxHeight: '60vh',
+                margin: '0 auto',
+                background: '#1a1a1a',
+                borderRadius: 8,
+                overflow: 'hidden',
+              }}
+            >
+              <img
+                src={overlayAttachment.url}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
+              />
+              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'auto' }}>
+                {(() => {
+                  const order = combat?.order ?? [];
+                  const inCombat = order.length > 0;
+                  const tokenParticipants = inCombat
+                    ? order
+                    : displayPlayers.map((dp) => ({ id: dp.userId, kind: 'pc' as const, name: characterPreviews[dp.characterId!]?.characterName ?? dp.name ?? 'Игрок' }));
+                      return tokenParticipants.map((p, index) => {
+                        const key = participantKey(p);
+                        const isNpc = p.kind === 'npc';
+                        const npc = isNpc ? npcs.find((n) => n.id === p.id) : undefined;
+                        const pc = !isNpc ? displayPlayers.find((dp) => dp.userId === p.id) : undefined;
+                        const ch = pc?.characterId ? characterPreviews[pc.characterId] : null;
+                        const name = ch?.characterName ?? p.name ?? pc?.name ?? `Участник ${index + 1}`;
+                        const imageUrl = isNpc ? npc?.imageUrl : (pc?.characterId ? portraitUrls[pc.characterId] : undefined);
+                        const pos = draggingTokenKey === key && tokenTempPosition ? tokenTempPosition : (tokenPositions[key] ?? { x: 20 + (index % 6) * 14, y: 25 + Math.floor(index / 6) * 22 });
+                        const size = Math.max(24, Math.min(80, 48 * tokenScale));
+                        return (
+                          <div
+                            key={key}
+                            onMouseDown={(e) => { if (canDragToken(key) && e.button === 0) { e.preventDefault(); setDraggingTokenKey(key); tokenDragPosRef.current = { x: pos.x, y: pos.y }; setTokenTempPosition({ x: pos.x, y: pos.y }); } }}
+                            style={{
+                              position: 'absolute',
+                              left: `${pos.x}%`,
+                              top: `${pos.y}%`,
+                              transform: 'translate(-50%, -50%)',
+                              width: size,
+                              height: size,
+                              borderRadius: '50%',
+                              overflow: 'hidden',
+                              border: '2px solid #fff',
+                              boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
+                              cursor: canDragToken(key) ? 'grab' : 'default',
+                              background: '#2a5298',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: Math.round(size * 0.45),
+                              fontWeight: 700,
+                              userSelect: 'none',
+                            }}
+                          >
+                            {imageUrl ? <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : name.charAt(0).toUpperCase()}
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+          ) : hasBattleView ? (
             <div style={{ width: '100%', maxWidth: 900, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ color: '#fff', fontSize: 14 }}>
                   <strong style={{color:'black'}}>{combat?.active ? 'Бой идёт' : 'NPC на поле, бой ещё не начат'}</strong>
                   {combat?.timerStartedAt && combat.active && (
@@ -1364,65 +1471,20 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   )}
                 </div>
                 {isMaster && (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                     {!combat?.active && (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (!sendAction) return;
-                          sendAction('combat:start', {});
-                        }}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: 6,
-                          border: 'none',
-                          background: '#28a745',
-                          color: '#fff',
-                          fontSize: 12,
-                          cursor: 'pointer',
-                        }}
+                        onClick={() => { if (!sendAction) return; sendAction('combat:start', {}); }}
+                        style={{ padding: '6px 10px', borderRadius: 6, border: 'none', background: '#28a745', color: '#fff', fontSize: 12, cursor: 'pointer' }}
                       >
                         Начать бой
                       </button>
                     )}
                     {combat?.active && (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!sendAction) return;
-                            sendAction('combat:next', {});
-                          }}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            border: 'none',
-                            background: '#0d6efd',
-                            color: '#fff',
-                            fontSize: 12,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Следующий ход
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!sendAction) return;
-                            sendAction('combat:end', {});
-                          }}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            border: 'none',
-                            background: '#dc3545',
-                            color: '#fff',
-                            fontSize: 12,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Закончить бой
-                        </button>
+                        <button type="button" onClick={() => { if (!sendAction) return; sendAction('combat:next', {}); }} style={{ padding: '6px 10px', borderRadius: 6, border: 'none', background: '#0d6efd', color: '#fff', fontSize: 12, cursor: 'pointer' }}>Следующий ход</button>
+                        <button type="button" onClick={() => { if (!sendAction) return; sendAction('combat:end', {}); }} style={{ padding: '6px 10px', borderRadius: 6, border: 'none', background: '#dc3545', color: '#fff', fontSize: 12, cursor: 'pointer' }}>Закончить бой</button>
                       </>
                     )}
                   </div>
@@ -1664,6 +1726,26 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
         >
           {room.scenarioId ? (
             <>
+              {isMaster && (
+                <div style={{ marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid #dee2e6' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', cursor: 'pointer', color: '#333', marginBottom: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={tacticsMode}
+                      onChange={() => sendAction?.('tactics:toggle', {})}
+                    />
+                    Режим тактики
+                  </label>
+                  {tacticsMode && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: '12px', color: '#333' }}>Размер токенов:</span>
+                      <button type="button" onClick={() => sendAction?.('tactics:setScale', { scale: Math.max(0.25, tokenScale - 0.25) })} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid #ccc', background: '#fff', cursor: 'pointer', fontSize: 14 }}>−</button>
+                      <span style={{ fontSize: 12, minWidth: 36, textAlign: 'center' }}>{Math.round(tokenScale * 100)}%</span>
+                      <button type="button" onClick={() => sendAction?.('tactics:setScale', { scale: Math.min(3, tokenScale + 0.25) })} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid #ccc', background: '#fff', cursor: 'pointer', fontSize: 14 }}>+</button>
+                    </div>
+                  )}
+                </div>
+              )}
               <h3 style={{ color: '#333', marginBottom: '12px', fontSize: '15px' }}>
                 Вложения {isMaster ? '(мастер)' : ''}
               </h3>
@@ -1720,13 +1802,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                     onChange={(e) => {
                       const locId = e.target.value;
                       if (!socket) return;
-                      const locs = scenario?.scriptData?.locations ?? [];
-                      const loc = locs.find((l) => l.id === locId);
-                      socket.emit('scenario:setLocation', {
-                        locationId: locId || '',
-                        attachmentId: loc?.mapFileId ?? null,
-                      });
-                      if (loc?.mapFileId) setOverlayHidden(false);
+                      socket.emit('scenario:setLocation', { locationId: locId || '' });
                     }}
                     style={{
                       width: '100%',
@@ -1740,7 +1816,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                     <option value="">— не выбрана —</option>
                     {(scenario?.scriptData?.locations ?? []).map((loc) => (
                       <option key={loc.id} value={loc.id}>
-                        {loc.title || '—'} {loc.mapFileId ? '' : '(нет карты)'}
+                        {loc.title || '—'} {((loc as { mapFileIds?: string[] }).mapFileIds?.length ?? (loc as { mapFileId?: string }).mapFileId) ? '' : '(нет карты)'}
                       </option>
                     ))}
                   </select>
@@ -1768,7 +1844,9 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
               {(scenario?.audios?.length ?? 0) > 0 && (
                 <>
                   <h3 style={{ color: '#333', marginTop: '12px', marginBottom: '8px', fontSize: '15px' }}>
-                    Аудио
+                    Аудио {currentLocationId && scenario?.scriptData?.locations?.find((l) => l.id === currentLocationId)
+                      ? `(локация «${scenario.scriptData.locations.find((l) => l.id === currentLocationId)?.title ?? '—'}»)`
+                      : '(все)'}
                   </h3>
                   {isMaster ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1790,12 +1868,20 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                       </div>
                       {(() => {
                         const audios = scenario?.audios ?? [];
-                        const locAudioId = currentLocationId && scenario?.scriptData?.locations
-                          ? scenario.scriptData.locations.find((l) => l.id === currentLocationId)?.audioId
+                        const loc = currentLocationId && scenario?.scriptData?.locations
+                          ? scenario.scriptData.locations.find((l) => l.id === currentLocationId)
                           : null;
-                        const locationAudios = locAudioId ? audios.filter((a) => a.id === locAudioId) : [];
-                        const otherAudios = locAudioId ? audios.filter((a) => a.id !== locAudioId) : audios;
-                        const renderAudio = (a: typeof audios[0], isLocation?: boolean) => {
+                        const locAudioIds: string[] = !loc
+                          ? []
+                          : Array.isArray(loc.audioIds)
+                            ? loc.audioIds
+                            : (loc as { audioId?: string }).audioId
+                              ? [(loc as { audioId: string }).audioId]
+                              : [];
+                        const audiosToShow = currentLocationId && loc
+                          ? audios.filter((a) => locAudioIds.includes(a.id))
+                          : audios;
+                        const renderAudio = (a: typeof audios[0]) => {
                           const name = a.displayName ?? a.fileName;
                           const isPlaying = playingAudioId === a.id;
                           return (
@@ -1808,9 +1894,6 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                                 background: isPlaying ? '#e7f3ff' : '#f8f9fa',
                               }}
                             >
-                              {isLocation && (
-                                <div style={{ fontSize: '10px', color: '#6f42c1', marginBottom: '4px', fontWeight: 600 }}>Аудио локации</div>
-                              )}
                               <div
                                 style={{
                                   fontSize: '12px',
@@ -1859,14 +1942,12 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                           </div>
                           );
                         };
-                        return (
-                          <>
-                            {locationAudios.map((a) => renderAudio(a, true))}
-                            {otherAudios.length > 0 && locationAudios.length > 0 && (
-                              <div style={{ fontSize: '11px', color: '#666', marginTop: 8, marginBottom: 4 }}>Прочее аудио</div>
-                            )}
-                            {otherAudios.map((a) => renderAudio(a))}
-                          </>
+                        return audiosToShow.length === 0 ? (
+                          <div style={{ fontSize: '12px', color: '#666' }}>
+                            {currentLocationId && loc ? 'У выбранной локации нет аудио' : 'Нет аудио'}
+                          </div>
+                        ) : (
+                          <>{audiosToShow.map((a) => renderAudio(a))}</>
                         );
                       })()}
                     </div>
@@ -1908,11 +1989,31 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                 <div style={{ color: '#666', fontSize: '13px' }}>Загрузка...</div>
               ) : (() => {
                 const attachments = scenario?.attachments ?? [];
+                const loc = currentLocationId && scenario?.scriptData?.locations
+                  ? scenario.scriptData.locations.find((l) => l.id === currentLocationId)
+                  : null;
+                const locMapIds: string[] = !loc
+                  ? []
+                  : Array.isArray(loc.mapFileIds)
+                    ? loc.mapFileIds
+                    : (loc as { mapFileId?: string }).mapFileId
+                      ? [(loc as { mapFileId: string }).mapFileId]
+                      : [];
+                const byLocation = currentLocationId && loc
+                  ? attachments.filter((f) => locMapIds.includes(f.id))
+                  : attachments;
                 const attachmentsToShow = isMaster
-                  ? attachments
-                  : attachments.filter((f) => unlockedAttachments.includes(f.id));
-                return attachmentsToShow.length === 0 ? (
-                  <div style={{ color: '#666', fontSize: '13px' }}>Нет вложений</div>
+                  ? byLocation
+                  : byLocation.filter((f) => unlockedAttachments.includes(f.id));
+                return (
+                  <>
+                    <h3 style={{ color: '#333', marginTop: '12px', marginBottom: '8px', fontSize: '15px' }}>
+                      Вложения {currentLocationId && loc ? `(локация «${loc.title ?? '—'}»)` : '(все)'}
+                    </h3>
+                    {attachmentsToShow.length === 0 ? (
+                  <div style={{ color: '#666', fontSize: '13px' }}>
+                    {currentLocationId && loc ? 'У выбранной локации нет вложений' : 'Нет вложений'}
+                  </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', minWidth: 0 }}>
                     {attachmentsToShow.map((f) => {
@@ -2044,6 +2145,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                       );
                     })}
                   </div>
+                )}
+                  </>
                 );
               })()}
             </>

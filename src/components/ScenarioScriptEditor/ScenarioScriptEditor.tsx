@@ -30,19 +30,32 @@ export const ScenarioScriptEditor: React.FC<ScenarioScriptEditorProps> = ({
   attachments = [],
   onScriptChange,
 }) => {
-  const [script, setScript] = useState<ScenarioScriptData>(() => ({
-    locations: initialScript?.locations ?? [],
-    situations: initialScript?.situations ?? [],
-    branches: initialScript?.branches ?? [],
-    startLocationId: initialScript?.startLocationId ?? null,
-  }));
+  const normalizeLocation = (loc: ScenarioScriptLocation) => {
+    const legacy = loc as ScenarioScriptLocation & { audioId?: string | null; mapFileId?: string | null };
+    return {
+      ...loc,
+      audioIds: loc.audioIds ?? (legacy.audioId ? [legacy.audioId] : []),
+      mapFileIds: loc.mapFileIds ?? (legacy.mapFileId ? [legacy.mapFileId] : []),
+    };
+  };
+
+  const [script, setScript] = useState<ScenarioScriptData>(() => {
+    const locs = (initialScript?.locations ?? []).map(normalizeLocation);
+    return {
+      locations: locs,
+      situations: initialScript?.situations ?? [],
+      branches: initialScript?.branches ?? [],
+      startLocationId: initialScript?.startLocationId ?? null,
+    };
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialScript) {
+      const locs = (initialScript.locations ?? []).map(normalizeLocation);
       setScript({
-        locations: initialScript.locations ?? [],
+        locations: locs,
         situations: initialScript.situations ?? [],
         branches: initialScript.branches ?? [],
         startLocationId: initialScript.startLocationId ?? null,
@@ -71,7 +84,7 @@ export const ScenarioScriptEditor: React.FC<ScenarioScriptEditorProps> = ({
     const id = generateId();
     setScript((prev) => ({
       ...prev,
-      locations: [...(prev.locations ?? []), { id, title: 'Новая локация', body: '', notes: '', npcIds: [], order: (prev.locations?.length ?? 0), audioId: null, mapFileId: null }],
+      locations: [...(prev.locations ?? []), { id, title: 'Новая локация', body: '', notes: '', npcIds: [], order: (prev.locations?.length ?? 0), audioIds: [], mapFileIds: [] }],
     }));
   };
 
@@ -187,13 +200,16 @@ export const ScenarioScriptEditor: React.FC<ScenarioScriptEditorProps> = ({
             <textarea value={loc.notes ?? ''} onChange={(e) => updateLocation(loc.id, { notes: e.target.value })} placeholder="Заметки мастера по локации (опционально)" rows={1} style={{ width: '100%', padding: 6, fontSize: 12, marginBottom: 6, boxSizing: 'border-box' }} />
             {audios.length > 0 && (
               <div style={{ marginBottom: 6 }}>
-                <label style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Аудио локации</label>
+                <label style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Аудио локации (можно несколько)</label>
                 <select
-                  value={loc.audioId ?? ''}
-                  onChange={(e) => updateLocation(loc.id, { audioId: e.target.value || null })}
-                  style={{ width: '100%', padding: '4px 8px', fontSize: 12 }}
+                  multiple
+                  value={loc.audioIds ?? []}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions, (o) => o.value);
+                    updateLocation(loc.id, { audioIds: selected });
+                  }}
+                  style={{ width: '100%', minHeight: 72, padding: '4px 8px', fontSize: 12 }}
                 >
-                  <option value="">— без аудио —</option>
                   {audios.map((a) => (
                     <option key={a.id} value={a.id}>{a.displayName ?? a.fileName}</option>
                   ))}
@@ -202,13 +218,16 @@ export const ScenarioScriptEditor: React.FC<ScenarioScriptEditorProps> = ({
             )}
             {attachments.length > 0 && (
               <div style={{ marginBottom: 6 }}>
-                <label style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Карта локации</label>
+                <label style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Карты/изображения локации (можно несколько)</label>
                 <select
-                  value={loc.mapFileId ?? ''}
-                  onChange={(e) => updateLocation(loc.id, { mapFileId: e.target.value || null })}
-                  style={{ width: '100%', padding: '4px 8px', fontSize: 12 }}
+                  multiple
+                  value={loc.mapFileIds ?? []}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions, (o) => o.value);
+                    updateLocation(loc.id, { mapFileIds: selected });
+                  }}
+                  style={{ width: '100%', minHeight: 72, padding: '4px 8px', fontSize: 12 }}
                 >
-                  <option value="">— без карты —</option>
                   {attachments.filter((a) => a.mimeType?.startsWith('image/')).map((a) => (
                     <option key={a.id} value={a.id}>{a.displayName ?? a.fileName}</option>
                   ))}

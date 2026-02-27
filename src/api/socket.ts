@@ -39,6 +39,11 @@ export interface CombatState {
   timerStartedAt?: string;
 }
 
+export interface TokenPosition {
+  x: number;
+  y: number;
+}
+
 export interface MasterState {
   hiddenLocations?: Location[];
   traps?: Trap[];
@@ -46,6 +51,9 @@ export interface MasterState {
   logs?: string[];
   npcs?: NpcInstance[];
   combat?: CombatState;
+  tacticsMode?: boolean;
+  tokenPositions?: Record<string, TokenPosition>;
+  tokenScale?: number;
 }
 
 export interface GameState {

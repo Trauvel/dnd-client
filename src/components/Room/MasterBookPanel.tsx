@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ScenarioScriptData, ScenarioScriptBranch, ScenarioFile } from '../../api/scenarios';
 import type { ScenarioNpc } from '../../api/scenarioNpcs';
 import {
@@ -73,7 +73,6 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
   const [notesSaving, setNotesSaving] = useState(false);
   const [collapsedNotesIds, setCollapsedNotesIds] = useState<Set<string>>(new Set());
   const [notesSearchQuery, setNotesSearchQuery] = useState('');
-  const locationAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const toggleNotesSectionCollapsed = (id: string) => {
     setCollapsedNotesIds((prev) => {
@@ -608,19 +607,19 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
               <div style={{ fontSize: 13, color: '#999', marginBottom: 12 }}>Выберите раздел слева или добавьте новый.</div>
             )}
             <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 10 }}>{title}</div>
-            {currentLocation?.audioId && scenarioAudios.length > 0 && (() => {
-              const audioFile = scenarioAudios.find((a) => a.id === currentLocation.audioId);
-              if (!audioFile?.url) return null;
+            {(() => {
+              const ids = currentLocation?.audioIds ?? (currentLocation as { audioId?: string })?.audioId ? [(currentLocation as { audioId?: string }).audioId!] : [];
+              const locationAudios = scenarioAudios.filter((a) => ids.includes(a.id));
+              if (locationAudios.length === 0) return null;
               return (
                 <div style={{ marginBottom: 12, padding: 8, background: '#f0f4ff', borderRadius: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 6 }}>Аудио локации</div>
-                  <audio
-                    ref={locationAudioRef}
-                    src={audioFile.url}
-                    controls
-                    style={{ width: '100%', maxWidth: 400 }}
-                  />
-                  <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{audioFile.displayName ?? audioFile.fileName}</div>
+                  {locationAudios.map((audioFile) => (
+                    <div key={audioFile.id} style={{ marginBottom: 8 }}>
+                      <audio src={audioFile.url} controls style={{ width: '100%', maxWidth: 400 }} />
+                      <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{audioFile.displayName ?? audioFile.fileName}</div>
+                    </div>
+                  ))}
                 </div>
               );
             })()}
