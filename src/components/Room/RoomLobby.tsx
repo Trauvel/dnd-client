@@ -2156,8 +2156,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
         </aside>
       </main>
 
-      {/* Футер — список персонажей (всегда внизу экрана) */}
-      {displayPlayers.length > 0 && (
+      {/* Футер — в режиме тактики и в бою: слева игроки, справа NPC; иначе — список персонажей */}
+      {(displayPlayers.length > 0 || (tacticsMode && (combat?.order?.length ?? 0) > 0)) && (
         <footer
           style={{
             flexShrink: 0,
@@ -2167,6 +2167,136 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
             boxShadow: '0 -1px 3px rgba(0,0,0,0.06)',
           }}
         >
+          {tacticsMode && (combat?.order?.length ?? 0) > 0 ? (
+            <div style={{ display: 'flex', gap: '24px', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#555', marginBottom: '8px' }}>Игроки</div>
+                <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px', alignItems: 'flex-start' }}>
+                  {(combat!.order!.filter((p) => p.kind === 'pc')).map((p) => {
+                    const pc = displayPlayers.find((dp) => dp.userId === p.id);
+                    const characterId = pc?.characterId;
+                    const ch = characterId ? characterPreviews[characterId] : null;
+                    const name = ch?.characterName ?? p.name ?? pc?.name ?? 'Игрок';
+                    const hp = p.hp ?? ch?.hp ?? 0;
+                    const maxHp = p.maxHp ?? ch?.maxHp ?? 0;
+                    const level = ch?.level ?? 1;
+                    const portraitUrl = characterId ? portraitUrls[characterId] : undefined;
+                    return (
+                      <div
+                        key={`pc-${p.id}`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openCharacterSheet(characterId)}
+                        onKeyDown={(e) => e.key === 'Enter' && openCharacterSheet(characterId)}
+                        style={{
+                          minWidth: '120px',
+                          padding: '8px',
+                          borderRadius: '8px',
+                          border: '1px solid #dee2e6',
+                          background: '#f8f9fa',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: portraitUrl ? 'transparent' : '#2a5298', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 700, overflow: 'hidden' }}>
+                          {portraitUrl ? <img src={portraitUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : name.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: '13px', textAlign: 'center', color: '#000' }}>{name}</div>
+                        <div style={{ fontSize: '12px', color: '#333' }}>HP: {hp}/{maxHp}</div>
+                        <div style={{ fontSize: '11px', color: '#666' }}>Ур. {level}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#555', marginBottom: '8px' }}>NPC</div>
+                <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px', alignItems: 'flex-start' }}>
+                  {(combat!.order!.filter((p) => p.kind === 'npc')).map((p) => {
+                    const npc = npcs.find((n) => n.id === p.id);
+                    const name = p.name ?? npc?.name ?? 'NPC';
+                    const hp = p.hp ?? npc?.hp ?? 0;
+                    const maxHp = p.maxHp ?? npc?.maxHp ?? 0;
+                    const imageUrl = npc?.imageUrl;
+                    const key = participantKey(p);
+                    return (
+                      <div
+                        key={key}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          const tpl = npc?.templateId ? scenarioNpcs.find((t) => t.id === npc.templateId) : undefined;
+                          if (tpl) setNpcDetail(tpl);
+                          else if (npc) setNpcDetail({
+                            id: npc.id,
+                            scenarioId: room!.scenarioId!,
+                            name,
+                            type: undefined,
+                            armorClass: npc.armorClass,
+                            armorClassText: undefined,
+                            hpAverage: npc.maxHp,
+                            hpText: undefined,
+                            speed: npc.speed != null ? String(npc.speed) : undefined,
+                            strength: undefined,
+                            dexterity: undefined,
+                            constitution: undefined,
+                            intelligence: undefined,
+                            wisdom: undefined,
+                            charisma: undefined,
+                            skills: undefined,
+                            senses: undefined,
+                            languages: undefined,
+                            xp: undefined,
+                            challenge: undefined,
+                            habitat: undefined,
+                            traits: undefined,
+                            abilities: undefined,
+                            actions: undefined,
+                            legendaryActions: undefined,
+                            description: undefined,
+                            imageUrl: npc.imageUrl,
+                            imageFileId: undefined,
+                          });
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && (document.activeElement as HTMLElement)?.click()}
+                        style={{
+                          minWidth: '120px',
+                          padding: '8px',
+                          borderRadius: '8px',
+                          border: '1px solid #dee2e6',
+                          background: p.isDead ? '#f8f8f8' : '#fff5f5',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: 'pointer',
+                          opacity: p.isDead ? 0.7 : 1,
+                        }}
+                      >
+                        <div style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', background: '#2a5298', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 700 }}>
+                          {imageUrl ? <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : name.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: '13px', textAlign: 'center', color: '#000' }}>{name}</div>
+                        <div style={{ fontSize: '12px', color: '#333' }}>HP: {hp}/{maxHp}</div>
+                        {isMaster && (
+                          <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
+                            <button type="button" onClick={() => handleCombatParticipantHp(p, -5)} disabled={combatParticipantUpdating === key || (hp ?? 0) <= 0} style={{ padding: '2px 5px', borderRadius: 4, border: 'none', background: '#dc3545', color: '#fff', fontSize: 10, cursor: 'pointer' }}>−5</button>
+                            <button type="button" onClick={() => handleCombatParticipantHp(p, -1)} disabled={combatParticipantUpdating === key || (hp ?? 0) <= 0} style={{ padding: '2px 5px', borderRadius: 4, border: 'none', background: '#fd7e14', color: '#fff', fontSize: 10, cursor: 'pointer' }}>−1</button>
+                            <button type="button" onClick={() => handleCombatParticipantHp(p, 1)} disabled={combatParticipantUpdating === key} style={{ padding: '2px 5px', borderRadius: 4, border: 'none', background: '#28a745', color: '#fff', fontSize: 10, cursor: 'pointer' }}>+1</button>
+                            <button type="button" onClick={() => handleCombatParticipantHp(p, 5)} disabled={combatParticipantUpdating === key} style={{ padding: '2px 5px', borderRadius: 4, border: 'none', background: '#28a745', color: '#fff', fontSize: 10, cursor: 'pointer' }}>+5</button>
+                            <button type="button" onClick={() => sendAction?.('npc:toggleDead', { npcId: p.id })} style={{ padding: '2px 6px', borderRadius: 4, border: 'none', background: p.isDead ? '#20c997' : '#6c757d', color: '#fff', fontSize: 10, cursor: 'pointer' }}>{p.isDead ? 'Жив' : 'Убит'}</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
           <div
             style={{
               display: 'flex',
@@ -2277,6 +2407,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
               );
             })}
           </div>
+          )}
         </footer>
       )}
 
