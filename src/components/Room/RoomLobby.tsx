@@ -1875,8 +1875,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                           ? []
                           : Array.isArray(loc.audioIds)
                             ? loc.audioIds
-                            : (loc as { audioId?: string }).audioId
-                              ? [(loc as { audioId: string }).audioId]
+                            : (loc as unknown as { audioId?: string }).audioId
+                              ? [(loc as unknown as { audioId: string }).audioId]
                               : [];
                         const audiosToShow = currentLocationId && loc
                           ? audios.filter((a) => locAudioIds.includes(a.id))
@@ -1996,8 +1996,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   ? []
                   : Array.isArray(loc.mapFileIds)
                     ? loc.mapFileIds
-                    : (loc as { mapFileId?: string }).mapFileId
-                      ? [(loc as { mapFileId: string }).mapFileId]
+                    : (loc as unknown as { mapFileId?: string }).mapFileId
+                      ? [(loc as unknown as { mapFileId: string }).mapFileId]
                       : [];
                 const byLocation = currentLocationId && loc
                   ? attachments.filter((f) => locMapIds.includes(f.id))
