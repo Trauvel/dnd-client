@@ -2,7 +2,7 @@ import { API_CONFIG } from '../config';
 import { getAuthHeader } from '../utils/auth';
 import { absolutizeUrl } from './scenarios';
 
-/** 'enemy' = враг (в бой), 'ally' = союзник, 'story' = персонаж мастера (только картинка и описание) */
+/** 'enemy' = враг (в бой), 'ally' = союзник, 'story' = персонаж мастера (только картинка и описание). Можно комбинировать. */
 export type ScenarioNpcKind = 'enemy' | 'ally' | 'story';
 
 export interface ScenarioNpc {
@@ -10,6 +10,9 @@ export interface ScenarioNpc {
   scenarioId: string;
   name: string;
   type?: string | null;
+  /** Множественный выбор: враг, союзник, персонаж мастера */
+  npcKinds?: ScenarioNpcKind[];
+  /** @deprecated используйте npcKinds */
   npcKind?: ScenarioNpcKind | null;
   armorClass?: number | null;
   armorClassText?: string | null;
@@ -41,7 +44,7 @@ export interface ScenarioNpc {
 export interface UpsertScenarioNpcPayload {
   name: string;
   type?: string;
-  npcKind?: ScenarioNpcKind | null;
+  npcKinds?: ScenarioNpcKind[] | null;
   armorClass?: number | null;
   armorClassText?: string | null;
   hpAverage?: number | null;
@@ -69,8 +72,14 @@ export interface UpsertScenarioNpcPayload {
 }
 
 function normalizeNpc(raw: any): ScenarioNpc {
+  const npcKinds = Array.isArray(raw.npcKinds)
+    ? raw.npcKinds.filter((k: string) => k === 'enemy' || k === 'ally' || k === 'story')
+    : raw.npcKind && (raw.npcKind === 'enemy' || raw.npcKind === 'ally' || raw.npcKind === 'story')
+      ? [raw.npcKind]
+      : [];
   return {
     ...raw,
+    npcKinds: npcKinds.length ? npcKinds : undefined,
     imageUrl: absolutizeUrl(raw.imageUrl) as string | null,
   } as ScenarioNpc;
 }

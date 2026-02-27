@@ -6,6 +6,8 @@ import {
   updateScenarioApi,
   deleteScenarioFile,
   renameScenarioFile,
+  buildScenarioExportPayload,
+  downloadScenarioAsJson,
   type Scenario,
 } from '../api/scenarios';
 import {
@@ -34,6 +36,15 @@ const ScenariosPage: React.FC = () => {
     npc: Partial<ScenarioNpc> | null;
     isNew: boolean;
   }>({ scenarioId: null, npc: null, isNew: true });
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
+    scenario: false,
+    attachments: false,
+    npc: false,
+    script: false,
+  });
+  const toggleSection = (key: string) =>
+    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   useEffect(() => {
     load();
@@ -191,20 +202,67 @@ const ScenariosPage: React.FC = () => {
       ) : scenarios.length === 0 ? (
         <div>Сценариев пока нет. Создай первый выше.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: 'black' }}>
-          {scenarios.map((s) => (
-            <div
-              key={s.id}
-              style={{
-                padding: '16px 20px',
-                borderRadius: '10px',
-                background: '#ffffff',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                <div>
-                  <h3 style={{ margin: 0 }}>{s.title}</h3>
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: 'black' }}>
+            {scenarios.map((s) => (
+              <div
+                key={s.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  background: '#fff',
+                  border: '1px solid #dee2e6',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h3 style={{ margin: 0, fontSize: '16px' }}>{s.title}</h3>
+                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {((s.description ?? '').slice(0, 120))}{(s.description?.length ?? 0) > 120 ? '…' : ''}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedScenarioId(s.id)}
+                    style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #0d6efd', background: '#0d6efd', color: '#fff', fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    Открыть
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const npcs = (npcByScenario[s.id] ?? []).map((n) => ({ name: n.name, type: n.type ?? null, npcKinds: n.npcKinds ?? [], description: n.description ?? null }));
+                      downloadScenarioAsJson(buildScenarioExportPayload(s, npcs));
+                    }}
+                    style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #6c757d', background: '#fff', color: '#6c757d', fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    Экспорт JSON
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {selectedScenarioId && (() => {
+            const s = scenarios.find((sc) => sc.id === selectedScenarioId);
+            if (!s) return null;
+            return (
+            <div style={{ marginTop: '24px', padding: '20px', borderRadius: '10px', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', color: 'black' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: 8 }}>
+                <h2 style={{ margin: 0 }}>{s.title}</h2>
+                <button type="button" onClick={() => setSelectedScenarioId(null)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer' }}>← К списку</button>
+              </div>
+
+              {/* Секция: Сценарий */}
+              <div style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+                <button type="button" onClick={() => toggleSection('scenario')} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.scenario ? '▶' : '▼'} Сценарий</button>
+                {!collapsedSections.scenario && (
+                <div style={{ padding: 12 }}>
                   <textarea
                     value={s.description ?? ''}
                     cols={70}
@@ -254,22 +312,25 @@ const ScenariosPage: React.FC = () => {
                   >
                     Сохранить описание
                   </button>
-                </div>
-                <div style={{ fontSize: '12px', color: '#777' }}>
-                  {new Date(s.createdAt).toLocaleDateString('ru-RU')}
-                </div>
-              </div>
-              <div style={{ marginTop: '10px', fontSize: '14px' }}>
-                {s.mainFileUrl ? (
-                  <div style={{ marginBottom: '6px' }}>
-                    <strong>Сценарий:</strong>{' '}
-                    <a href={s.mainFileUrl} target="_blank" rel="noreferrer" style={{ color: 'black' }}>
-                      открыть PDF
-                    </a>
+                  <div style={{ fontSize: '12px', color: '#777', marginTop: 8 }}>{new Date(s.createdAt).toLocaleDateString('ru-RU')}</div>
+                  <div style={{ marginTop: '10px', fontSize: '14px' }}>
+                    {s.mainFileUrl ? (
+                      <div style={{ marginBottom: '6px' }}>
+                        <strong>Сценарий:</strong>{' '}
+                        <a href={s.mainFileUrl} target="_blank" rel="noreferrer" style={{ color: 'black' }}>открыть PDF</a>
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom: '6px', color: '#999' }}>Основной файл не загружен</div>
+                    )}
                   </div>
-                ) : (
-                  <div style={{ marginBottom: '6px', color: '#999' }}>Основной файл не загружен</div>
+                </div>
                 )}
+              </div>
+
+              <div style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+                <button type="button" onClick={() => toggleSection('attachments')} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.attachments ? '▶' : '▼'} Приложения</button>
+                {!collapsedSections.attachments && (
+                <div style={{ padding: 12 }}>
                 {s.attachments.length > 0 && (
                   <div>
                     <strong>Приложения:</strong>
@@ -530,17 +591,35 @@ const ScenariosPage: React.FC = () => {
                     </div>
                   </div>
                 )}
-                <div style={{ marginTop: '8px' }}>
-                  <label
-                    style={{
-                      display: 'inline-block',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      background: '#e9ecef',
-                      fontSize: '12px',
-                      cursor: 'pointer',
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>Добавить вложения к этому сценарию</label>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,application/pdf"
+                    onChange={async (e) => {
+                      const files = e.target.files ? Array.from(e.target.files) : [];
+                      if (!files.length) return;
+                      try {
+                        const updated = await uploadScenarioFiles({ scenarioId: s.id, attachments: files });
+                        setScenarios((prev) => prev.map((it) => (it.id === s.id ? updated : it)));
+                        e.target.value = '';
+                      } catch (err: any) {
+                        setError(err.message || 'Ошибка загрузки вложений');
+                      }
                     }}
-                  >
+                  />
+                </div>
+                </div>
+                )}
+              </div>
+
+              <div style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+                <button type="button" onClick={() => toggleSection('npc')} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.npc ? '▶' : '▼'} NPC этого сценария</button>
+                {!collapsedSections.npc && (
+                <div style={{ padding: 12 }}>
+                <div style={{ marginTop: '8px' }}>
+                  <label style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 4, background: '#e9ecef', fontSize: 12, cursor: 'pointer' }}>
                     {s.audios?.length ? 'Добавить аудио' : 'Загрузить аудио'}
                     <input
                       type="file"
@@ -594,7 +673,7 @@ const ScenariosPage: React.FC = () => {
                         npc: {
                           name: '',
                           type: '',
-                          npcKind: 'ally',
+                          npcKinds: ['ally'],
                           hpText: '',
                           speed: '',
                           armorClass: undefined,
@@ -665,13 +744,13 @@ const ScenariosPage: React.FC = () => {
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                               <span style={{ fontWeight: 600, fontSize: '14px' }}>{npc.name}</span>
-                              {npc.npcKind === 'enemy' && (
+                              {(npc.npcKinds ?? []).includes('enemy') && (
                                 <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#f8d7da', color: '#721c24' }}>Враг</span>
                               )}
-                              {npc.npcKind === 'ally' && (
+                              {(npc.npcKinds ?? []).includes('ally') && (
                                 <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#d4edda', color: '#155724' }}>Союзник</span>
                               )}
-                              {npc.npcKind === 'story' && (
+                              {(npc.npcKinds ?? []).includes('story') && (
                                 <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#e2d5f1', color: '#3d2a54' }}>Персонаж мастера</span>
                               )}
                             </div>
@@ -770,7 +849,14 @@ const ScenariosPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
+                </div>
+                )}
+              </div>
 
+              <div style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+                <button type="button" onClick={() => toggleSection('script')} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.script ? '▶' : '▼'} Локации в сценарии и переходы</button>
+                {!collapsedSections.script && (
+                <div style={{ padding: 12 }}>
                 <ScenarioScriptEditor
                   scenarioId={s.id}
                   initialScript={s.scriptData}
@@ -783,44 +869,13 @@ const ScenariosPage: React.FC = () => {
                     )
                   }
                 />
-
-                <div style={{ marginTop: '8px' }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      marginBottom: '4px',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                    }}
-                  >
-                    Добавить вложения к этому сценарию
-                  </label>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*,application/pdf"
-                    onChange={async (e) => {
-                      const files = e.target.files ? Array.from(e.target.files) : [];
-                      if (!files.length) return;
-                      try {
-                        const updated = await uploadScenarioFiles({
-                          scenarioId: s.id,
-                          attachments: files,
-                        });
-                        setScenarios((prev) =>
-                          prev.map((it) => (it.id === s.id ? updated : it))
-                        );
-                        e.target.value = '';
-                      } catch (err: any) {
-                        setError(err.message || 'Ошибка загрузки вложений');
-                      }
-                    }}
-                  />
                 </div>
+                )}
               </div>
             </div>
-          ))}
-        </div>
+            );
+          })()}
+        </>
       )}
       {npcEditing.scenarioId && npcEditing.npc && (
         <div
@@ -976,23 +1031,39 @@ const ScenariosPage: React.FC = () => {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Роль (для боя)</label>
-                <select
-                  value={npcEditing.npc.npcKind ?? ''}
-                  onChange={(e) =>
-                    setNpcEditing((prev) =>
-                      prev.scenarioId
-                        ? { ...prev, npc: { ...prev.npc!, npcKind: (e.target.value === 'enemy' || e.target.value === 'ally' || e.target.value === 'story' ? e.target.value : null) as 'enemy' | 'ally' | 'story' | null } }
-                        : prev
-                    )
-                  }
-                  style={{ width: '100%' }}
-                >
-                  <option value="">— не указано —</option>
-                  <option value="enemy">Враг (можно добавить в бой)</option>
-                  <option value="ally">Союзник / нейтральный (не для боя)</option>
-                  <option value="story">Персонаж мастера (только картинка и описание)</option>
-                </select>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Роли (можно несколько)</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                  {(['enemy', 'ally', 'story'] as const).map((kind) => {
+                    const kinds = npcEditing.npc.npcKinds ?? [];
+                    const checked = kinds.includes(kind);
+                    return (
+                      <label key={kind} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) =>
+                            setNpcEditing((prev) =>
+                              prev.scenarioId
+                                ? {
+                                    ...prev,
+                                    npc: {
+                                      ...prev.npc!,
+                                      npcKinds: e.target.checked
+                                        ? [...(prev.npc!.npcKinds ?? []), kind]
+                                        : (prev.npc!.npcKinds ?? []).filter((k) => k !== kind),
+                                    },
+                                  }
+                                : prev
+                            )
+                          }
+                        />
+                        {kind === 'enemy' && 'Враг (в бой)'}
+                        {kind === 'ally' && 'Союзник / нейтральный'}
+                        {kind === 'story' && 'Персонаж мастера (картинка и описание)'}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Местность</label>
@@ -1301,7 +1372,7 @@ const ScenariosPage: React.FC = () => {
                     const basePayload: UpsertScenarioNpcPayload = {
                       name: npcEditing.npc.name!.trim(),
                       type: npcEditing.npc.type ?? undefined,
-                      npcKind: npcEditing.npc.npcKind ?? null,
+                      npcKinds: (npcEditing.npc.npcKinds?.length ? npcEditing.npc.npcKinds : null) ?? null,
                       armorClass: npcEditing.npc.armorClass ?? null,
                       armorClassText: npcEditing.npc.armorClassText ?? null,
                       hpAverage: npcEditing.npc.hpAverage ?? null,

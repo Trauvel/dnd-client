@@ -248,3 +248,35 @@ export async function updateMasterBook(data: MasterBookData): Promise<MasterBook
   const raw = Array.isArray(result.sections) ? result.sections : [];
   return { sections: normalizeSections(raw) };
 }
+
+/** Скачать книгу заметок как JSON */
+export function downloadMasterBookAsJson(data: MasterBookData, filename?: string): void {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename ?? `master-book-notes-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/** Проверить, что объект похож на MasterBookData */
+function isMasterBookDataLike(obj: unknown): obj is MasterBookData {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'sections' in obj &&
+    Array.isArray((obj as MasterBookData).sections)
+  );
+}
+
+/** Прочитать книгу заметок из JSON-файла (для импорта) */
+export function parseMasterBookFromJson(jsonString: string): MasterBookData | null {
+  try {
+    const parsed = JSON.parse(jsonString) as unknown;
+    if (!isMasterBookDataLike(parsed)) return null;
+    return { sections: normalizeSections(parsed.sections) };
+  } catch {
+    return null;
+  }
+}

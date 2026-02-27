@@ -2560,7 +2560,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
             {scenarioNpcsLoading && scenarioNpcs.length === 0 ? (
               <div style={{ fontSize: 14 }}>Загрузка NPC...</div>
             ) : (() => {
-              const enemyNpcs = scenarioNpcs.filter((n) => n.npcKind === 'enemy');
+              const enemyNpcs = scenarioNpcs.filter((n) => n.npcKinds?.includes('enemy'));
               if (enemyNpcs.length === 0) {
                 return (
                   <div style={{ fontSize: 14 }}>
@@ -2681,7 +2681,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                 onClick={() => {
                   if (!sendAction || !selectedNpcTemplateId || !room?.scenarioId) return;
                   const template = scenarioNpcs.find((n) => n.id === selectedNpcTemplateId);
-                  if (!template || template.npcKind !== 'enemy') return;
+                  if (!template || !template.npcKinds?.includes('enemy')) return;
                   const instances = Array.from({ length: npcSpawnCount }, (_, i) => {
                     const baseName = template.name || 'NPC';
                     const name = npcSpawnCount > 1 ? `${baseName} #${i + 1}` : baseName;
@@ -2707,14 +2707,14 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   setOverlayHidden(true);
                   setNpcModalOpen(false);
                 }}
-                disabled={!selectedNpcTemplateId || scenarioNpcs.find((n) => n.id === selectedNpcTemplateId)?.npcKind !== 'enemy'}
+                disabled={!selectedNpcTemplateId || !scenarioNpcs.find((n) => n.id === selectedNpcTemplateId)?.npcKinds?.includes('enemy')}
                 style={{
                   padding: '6px 12px',
                   borderRadius: 6,
                   border: 'none',
-                  background: selectedNpcTemplateId && scenarioNpcs.find((n) => n.id === selectedNpcTemplateId)?.npcKind === 'enemy' ? '#28a745' : '#adb5bd',
+                  background: selectedNpcTemplateId && scenarioNpcs.find((n) => n.id === selectedNpcTemplateId)?.npcKinds?.includes('enemy') ? '#28a745' : '#adb5bd',
                   color: '#fff',
-                  cursor: selectedNpcTemplateId && scenarioNpcs.find((n) => n.id === selectedNpcTemplateId)?.npcKind === 'enemy' ? 'pointer' : 'not-allowed',
+                  cursor: selectedNpcTemplateId && scenarioNpcs.find((n) => n.id === selectedNpcTemplateId)?.npcKinds?.includes('enemy') ? 'pointer' : 'not-allowed',
                 }}
               >
                 Создать NPC

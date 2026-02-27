@@ -91,6 +91,50 @@ function normalizeScenario(raw: any): Scenario {
   } as Scenario;
 }
 
+/** Данные сценария для экспорта в JSON (обсуждение с GPT: без бинарных файлов, с кратким описанием NPC) */
+export interface ScenarioExportPayload {
+  title: string;
+  description?: string | null;
+  scriptData?: ScenarioScriptData | null;
+  /** Краткое описание NPC: имя, тип, роль, текстовое описание */
+  npcs?: Array<{ name: string; type?: string | null; npcKinds?: string[]; description?: string | null }>;
+  /** Метки вложений (для контекста): карты и аудио по локациям */
+  attachmentLabels?: Record<string, string>;
+  exportedAt: string;
+}
+
+export function buildScenarioExportPayload(
+  scenario: Scenario,
+  npcs?: Array<{ name: string; type?: string | null; npcKinds?: string[]; description?: string | null }>
+): ScenarioExportPayload {
+  const attachmentLabels: Record<string, string> = {};
+  for (const a of scenario.attachments ?? []) {
+    attachmentLabels[a.id] = a.displayName ?? a.fileName;
+  }
+  for (const a of scenario.audios ?? []) {
+    attachmentLabels[a.id] = a.displayName ?? a.fileName;
+  }
+  return {
+    title: scenario.title,
+    description: scenario.description ?? null,
+    scriptData: scenario.scriptData ?? null,
+    npcs: npcs ?? [],
+    attachmentLabels: Object.keys(attachmentLabels).length > 0 ? attachmentLabels : undefined,
+    exportedAt: new Date().toISOString(),
+  };
+}
+
+/** Скачать сценарий как JSON-файл для обсуждения с GPT */
+export function downloadScenarioAsJson(payload: ScenarioExportPayload, filename?: string): void {
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename ?? `scenario-${payload.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')}-export.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 export async function getScenarioScript(scenarioId: string): Promise<ScenarioScriptData> {
   const response = await fetch(
     `${API_CONFIG.WEBSITE_API_URL}/api/scenarios/${scenarioId}/script`,

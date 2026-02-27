@@ -15,6 +15,8 @@ import {
   flattenSections,
   sectionOrDescendantMatches,
   getHighlightSegments,
+  downloadMasterBookAsJson,
+  parseMasterBookFromJson,
   type MasterBookData,
   type MasterBookSection,
 } from '../../api/masterBook';
@@ -219,7 +221,32 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
         <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {/* Левая колонка — быстрые переходы */}
           <aside style={sideCol}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>Книга заметок</div>
+            <input
+              id="masterbook-import-json"
+              type="file"
+              accept=".json,application/json"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const imported = parseMasterBookFromJson(reader.result as string);
+                  if (imported) setNotesBookData(imported);
+                };
+                reader.readAsText(file);
+                e.target.value = '';
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Книга заметок</div>
+              {notesBookData && (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button type="button" onClick={() => downloadMasterBookAsJson(notesBookData)} style={{ padding: '2px 6px', fontSize: 10, border: '1px solid #0d6efd', background: '#fff', color: '#0d6efd', borderRadius: 4, cursor: 'pointer' }}>Экспорт</button>
+                  <button type="button" onClick={() => (document.getElementById('masterbook-import-json') as HTMLInputElement)?.click()} style={{ padding: '2px 6px', fontSize: 10, border: '1px solid #28a745', background: '#fff', color: '#28a745', borderRadius: 4, cursor: 'pointer' }}>Импорт</button>
+                </div>
+              )}
+            </div>
             {notesBookData && notesBookData.sections.length > 0 && (
               <input
                 type="text"
@@ -429,8 +456,8 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
               </>
             )}
             <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' }}>NPC (враги / союзники)</div>
-            {scenarioNpcs.filter((n) => n.npcKind !== 'story').length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Нет</div>}
-            {scenarioNpcs.filter((n) => n.npcKind !== 'story').map((npc) => (
+            {scenarioNpcs.filter((n) => n.npcKinds?.includes('enemy') || n.npcKinds?.includes('ally')).length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Нет</div>}
+            {scenarioNpcs.filter((n) => n.npcKinds?.includes('enemy') || n.npcKinds?.includes('ally')).map((npc) => (
               <button
                 key={npc.id}
                 type="button"
@@ -452,8 +479,8 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
               </button>
             ))}
             <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' }}>Персонажи мастера</div>
-            {scenarioNpcs.filter((n) => n.npcKind === 'story').length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Нет</div>}
-            {scenarioNpcs.filter((n) => n.npcKind === 'story').map((npc) => (
+            {scenarioNpcs.filter((n) => n.npcKinds?.includes('story')).length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Нет</div>}
+            {scenarioNpcs.filter((n) => n.npcKinds?.includes('story')).map((npc) => (
               <button
                 key={npc.id}
                 type="button"
@@ -544,14 +571,31 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                     minHeight={200}
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={saveNotesBook}
-                  disabled={notesSaving}
-                  style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#0d6efd', color: '#fff', cursor: notesSaving ? 'wait' : 'pointer', fontWeight: 600 }}
-                >
-                  {notesSaving ? 'Сохранение…' : 'Сохранить заметки'}
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => notesBookData && downloadMasterBookAsJson(notesBookData)}
+                    disabled={!notesBookData}
+                    style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #0d6efd', background: '#fff', color: '#0d6efd', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Экспорт JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => (document.getElementById('masterbook-import-json') as HTMLInputElement)?.click()}
+                    style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #28a745', background: '#fff', color: '#28a745', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Импорт JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveNotesBook}
+                    disabled={notesSaving}
+                    style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#0d6efd', color: '#fff', cursor: notesSaving ? 'wait' : 'pointer', fontWeight: 600 }}
+                  >
+                    {notesSaving ? 'Сохранение…' : 'Сохранить заметки'}
+                  </button>
+                </div>
               </>
             ) : (
               <>
@@ -758,10 +802,10 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
               )}
               <div>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>{npcOverlay.name}</div>
-                {npcOverlay.npcKind !== 'story' && npcOverlay.type && <div style={{ fontSize: 13, color: '#666' }}>{npcOverlay.type}</div>}
+                {!npcOverlay.npcKinds?.includes('story') && npcOverlay.type && <div style={{ fontSize: 13, color: '#666' }}>{npcOverlay.type}</div>}
               </div>
             </div>
-            {npcOverlay.npcKind === 'story' ? (
+            {npcOverlay.npcKinds?.includes('story') ? (
               <>
                 {(npcOverlay.description ?? npcOverlay.notes) && (
                   <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', padding: 8, background: '#f8f9fa', borderRadius: 8, marginBottom: 12 }}>

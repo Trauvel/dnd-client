@@ -13,6 +13,8 @@ import {
   flattenSections,
   sectionOrDescendantMatches,
   getHighlightSegments,
+  downloadMasterBookAsJson,
+  parseMasterBookFromJson,
   type MasterBookData,
   type MasterBookSection,
 } from '../api/masterBook';
@@ -33,6 +35,7 @@ const MasterBookPage: React.FC = () => {
   const [dirty, setDirty] = useState(false);
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const importInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const toggleSectionCollapsed = (id: string) => {
     setCollapsedSectionIds((prev) => {
@@ -159,10 +162,65 @@ const MasterBookPage: React.FC = () => {
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <h1 style={{ margin: 0 }}>Книга заметок</h1>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {dirty && (
             <span style={{ fontSize: 13, color: '#666' }}>Есть несохранённые изменения</span>
           )}
+          <button
+            type="button"
+            onClick={() => downloadMasterBookAsJson(data)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid #0d6efd',
+              background: '#fff',
+              color: '#0d6efd',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Экспорт JSON
+          </button>
+          <button
+            type="button"
+            onClick={() => importInputRef.current?.click()}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid #28a745',
+              background: '#fff',
+              color: '#28a745',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Импорт JSON
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                const text = reader.result as string;
+                const imported = parseMasterBookFromJson(text);
+                if (imported) {
+                  setData(imported);
+                  setDirty(true);
+                  setSelectedId(imported.sections[0]?.id ?? null);
+                  setError(null);
+                } else {
+                  setError('Неверный формат файла. Ожидается JSON с полем sections.');
+                }
+              };
+              reader.readAsText(file);
+              e.target.value = '';
+            }}
+          />
           <button
             type="button"
             onClick={save}
