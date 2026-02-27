@@ -1034,7 +1034,7 @@ const ScenariosPage: React.FC = () => {
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Роли (можно несколько)</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                   {(['enemy', 'ally', 'story'] as const).map((kind) => {
-                    const kinds = npcEditing.npc.npcKinds ?? [];
+                    const kinds = npcEditing.npc?.npcKinds ?? [];
                     const checked = kinds.includes(kind);
                     return (
                       <label key={kind} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
