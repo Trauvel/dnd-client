@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import type { ScenarioScriptData, ScenarioScriptBranch } from '../../api/scenarios';
+import React, { useState, useEffect, useRef } from 'react';
+import type { ScenarioScriptData, ScenarioScriptBranch, ScenarioFile } from '../../api/scenarios';
 import type { ScenarioNpc } from '../../api/scenarioNpcs';
 import {
   getMasterBook,
@@ -29,6 +29,7 @@ function generateId(): string {
 interface MasterBookPanelProps {
   scriptData: ScenarioScriptData | null;
   scenarioNpcs: ScenarioNpc[];
+  scenarioAudios?: ScenarioFile[];
   onClose: () => void;
 }
 
@@ -52,6 +53,7 @@ const rightCol = {
 export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
   scriptData,
   scenarioNpcs,
+  scenarioAudios = [],
   onClose,
 }) => {
   const hasScenario = scriptData && (scriptData.locations?.length ?? 0) > 0;
@@ -69,6 +71,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
   const [notesSaving, setNotesSaving] = useState(false);
   const [collapsedNotesIds, setCollapsedNotesIds] = useState<Set<string>>(new Set());
   const [notesSearchQuery, setNotesSearchQuery] = useState('');
+  const locationAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const toggleNotesSectionCollapsed = (id: string) => {
     setCollapsedNotesIds((prev) => {
@@ -425,9 +428,32 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                 })}
               </>
             )}
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' }}>NPC</div>
-            {scenarioNpcs.length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Нет</div>}
-            {scenarioNpcs.map((npc) => (
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' }}>NPC (враги / союзники)</div>
+            {scenarioNpcs.filter((n) => n.npcKind !== 'story').length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Нет</div>}
+            {scenarioNpcs.filter((n) => n.npcKind !== 'story').map((npc) => (
+              <button
+                key={npc.id}
+                type="button"
+                onClick={() => setNpcOverlay(npc)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '6px 8px',
+                  marginBottom: 4,
+                  border: 'none',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                {npc.name}
+              </button>
+            ))}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' }}>Персонажи мастера</div>
+            {scenarioNpcs.filter((n) => n.npcKind === 'story').length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Нет</div>}
+            {scenarioNpcs.filter((n) => n.npcKind === 'story').map((npc) => (
               <button
                 key={npc.id}
                 type="button"
@@ -538,6 +564,22 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
               <div style={{ fontSize: 13, color: '#999', marginBottom: 12 }}>Выберите раздел слева или добавьте новый.</div>
             )}
             <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 10 }}>{title}</div>
+            {currentLocation?.audioId && scenarioAudios.length > 0 && (() => {
+              const audioFile = scenarioAudios.find((a) => a.id === currentLocation.audioId);
+              if (!audioFile?.url) return null;
+              return (
+                <div style={{ marginBottom: 12, padding: 8, background: '#f0f4ff', borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 6 }}>Аудио локации</div>
+                  <audio
+                    ref={locationAudioRef}
+                    src={audioFile.url}
+                    controls
+                    style={{ width: '100%', maxWidth: 400 }}
+                  />
+                  <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{audioFile.displayName ?? audioFile.fileName}</div>
+                </div>
+              );
+            })()}
             <RichTextBody html={body ?? ''} />
             {currentLocation && locationNotes && (
               <div style={{ marginBottom: 12 }}>
@@ -716,13 +758,23 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
               )}
               <div>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>{npcOverlay.name}</div>
-                {npcOverlay.type && <div style={{ fontSize: 13, color: '#666' }}>{npcOverlay.type}</div>}
+                {npcOverlay.npcKind !== 'story' && npcOverlay.type && <div style={{ fontSize: 13, color: '#666' }}>{npcOverlay.type}</div>}
               </div>
             </div>
-            {npcOverlay.notes && (
-              <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', padding: 8, background: '#f8f9fa', borderRadius: 8, marginBottom: 12 }}>
-                {npcOverlay.notes}
-              </div>
+            {npcOverlay.npcKind === 'story' ? (
+              <>
+                {(npcOverlay.description ?? npcOverlay.notes) && (
+                  <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', padding: 8, background: '#f8f9fa', borderRadius: 8, marginBottom: 12 }}>
+                    {npcOverlay.description ?? npcOverlay.notes}
+                  </div>
+                )}
+              </>
+            ) : (
+              npcOverlay.notes && (
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', padding: 8, background: '#f8f9fa', borderRadius: 8, marginBottom: 12 }}>
+                  {npcOverlay.notes}
+                </div>
+              )
             )}
             <button
               type="button"

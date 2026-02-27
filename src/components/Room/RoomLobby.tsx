@@ -31,6 +31,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [unlockedAttachments, setUnlockedAttachments] = useState<string[]>([]);
   const [activeAttachmentId, setActiveAttachmentId] = useState<string | null>(null);
+  const [currentLocationId, setCurrentLocationId] = useState<string | null>(null);
   const [overlayHidden, setOverlayHidden] = useState(false);
   const [portraitUrls, setPortraitUrls] = useState<Record<string, string>>({});
   const [diceSides, setDiceSides] = useState<number>(20);
@@ -207,10 +208,12 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
       scenarioId?: string;
       unlocked?: string[];
       activeAttachmentId?: string | null;
+      currentLocationId?: string | null;
     }) => {
       if (!data.scenarioId) return;
       setUnlockedAttachments(data.unlocked || []);
       setActiveAttachmentId(data.activeAttachmentId ?? null);
+      if (data.currentLocationId !== undefined) setCurrentLocationId(data.currentLocationId ?? null);
       if (data.activeAttachmentId) setOverlayHidden(false);
     };
 
@@ -815,6 +818,14 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           <span style={{ color: '#666', fontSize: '14px' }}>
             Игроков: {room.players.length}{room.maxPlayers ? `/${room.maxPlayers}` : ''}
           </span>
+          {currentLocationId && scenario?.scriptData?.locations && (() => {
+            const loc = scenario.scriptData.locations.find((l) => l.id === currentLocationId);
+            return loc ? (
+              <span style={{ color: '#555', fontSize: '14px' }} title="Текущая локация">
+                Локация: {loc.title || '—'}
+              </span>
+            ) : null;
+          })()}
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
@@ -1541,8 +1552,23 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                         )}
                       </div>
                       <div style={{ fontWeight: 600, fontSize: 13, textAlign: 'center', color: '#000' }}>{name}</div>
-                      <div style={{ fontSize: 11, color: '#333', marginTop: 2, textAlign: 'center' }}>
-                        Инит: {p.initiative >= 0 ? `+${p.initiative}` : p.initiative}
+                      <div style={{ fontSize: 11, color: '#333', marginTop: 2, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexWrap: 'wrap' }}>
+                        {isMaster ? (
+                          <>
+                            <label style={{ whiteSpace: 'nowrap' }}>Инит:</label>
+                            <input
+                              type="number"
+                              value={p.initiative}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                if (!Number.isNaN(v) && sendAction) sendAction('combat:setInitiative', { participantId: p.id, kind: p.kind, initiative: v });
+                              }}
+                              style={{ width: 44, padding: '2px 4px', fontSize: 11, textAlign: 'center', borderRadius: 4, border: '1px solid #ccc' }}
+                            />
+                          </>
+                        ) : (
+                          <>Инит: {p.initiative >= 0 ? `+${p.initiative}` : p.initiative}</>
+                        )}
                       </div>
                       {hp != null && maxHp != null && (
                         <div style={{ fontSize: 11, color: '#333', textAlign: 'center' }}>
@@ -1684,6 +1710,42 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   )}
                 </div>
               )}
+              {isMaster && (scenario?.scriptData?.locations?.length ?? 0) > 0 && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#333', marginBottom: '6px' }}>
+                    Текущая локация
+                  </label>
+                  <select
+                    value={currentLocationId ?? ''}
+                    onChange={(e) => {
+                      const locId = e.target.value;
+                      if (!socket) return;
+                      const locs = scenario?.scriptData?.locations ?? [];
+                      const loc = locs.find((l) => l.id === locId);
+                      socket.emit('scenario:setLocation', {
+                        locationId: locId || '',
+                        attachmentId: loc?.mapFileId ?? null,
+                      });
+                      if (loc?.mapFileId) setOverlayHidden(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      fontSize: '13px',
+                      border: '1px solid #dee2e6',
+                      borderRadius: '6px',
+                      background: '#fff',
+                    }}
+                  >
+                    <option value="">— не выбрана —</option>
+                    {(scenario?.scriptData?.locations ?? []).map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.title || '—'} {loc.mapFileId ? '' : '(нет карты)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {!isMaster && (
                 <div style={{ marginBottom: '10px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   <button
@@ -1726,33 +1788,43 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                         />
                         <span style={{ fontSize: '11px', color: '#666', width: '28px' }}>{Math.round(audioVolume * 100)}%</span>
                       </div>
-                      {(scenario?.audios ?? []).map((a) => {
-                        const name = a.displayName ?? a.fileName;
-                        const isPlaying = playingAudioId === a.id;
-                        return (
-                          <div
-                            key={a.id}
-                            style={{
-                              borderRadius: '6px',
-                              border: '1px solid #dee2e6',
-                              padding: '8px',
-                              background: isPlaying ? '#e7f3ff' : '#f8f9fa',
-                            }}
-                          >
+                      {(() => {
+                        const audios = scenario?.audios ?? [];
+                        const locAudioId = currentLocationId && scenario?.scriptData?.locations
+                          ? scenario.scriptData.locations.find((l) => l.id === currentLocationId)?.audioId
+                          : null;
+                        const locationAudios = locAudioId ? audios.filter((a) => a.id === locAudioId) : [];
+                        const otherAudios = locAudioId ? audios.filter((a) => a.id !== locAudioId) : audios;
+                        const renderAudio = (a: typeof audios[0], isLocation?: boolean) => {
+                          const name = a.displayName ?? a.fileName;
+                          const isPlaying = playingAudioId === a.id;
+                          return (
                             <div
+                              key={a.id}
                               style={{
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                marginBottom: '6px',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                color: 'black',
+                                borderRadius: '6px',
+                                border: '1px solid #dee2e6',
+                                padding: '8px',
+                                background: isPlaying ? '#e7f3ff' : '#f8f9fa',
                               }}
-                              title={name}
                             >
-                              {name}
-                            </div>
+                              {isLocation && (
+                                <div style={{ fontSize: '10px', color: '#6f42c1', marginBottom: '4px', fontWeight: 600 }}>Аудио локации</div>
+                              )}
+                              <div
+                                style={{
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  marginBottom: '6px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  color: 'black',
+                                }}
+                                title={name}
+                              >
+                                {name}
+                              </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                               <button
                                 type="button"
@@ -1785,8 +1857,18 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                               </label>
                             </div>
                           </div>
+                          );
+                        };
+                        return (
+                          <>
+                            {locationAudios.map((a) => renderAudio(a, true))}
+                            {otherAudios.length > 0 && locationAudios.length > 0 && (
+                              <div style={{ fontSize: '11px', color: '#666', marginTop: 8, marginBottom: 4 }}>Прочее аудио</div>
+                            )}
+                            {otherAudios.map((a) => renderAudio(a))}
+                          </>
                         );
-                      })}
+                      })()}
                     </div>
                   ) : playingAudioId ? (
                     <div
@@ -2646,6 +2728,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
         <MasterBookPanel
           scriptData={scenario?.scriptData ?? null}
           scenarioNpcs={scenarioNpcs ?? []}
+          scenarioAudios={scenario?.audios ?? []}
           onClose={() => setBookOpen(false)}
         />
       )}

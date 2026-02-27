@@ -671,6 +671,9 @@ const ScenariosPage: React.FC = () => {
                               {npc.npcKind === 'ally' && (
                                 <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#d4edda', color: '#155724' }}>Союзник</span>
                               )}
+                              {npc.npcKind === 'story' && (
+                                <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#e2d5f1', color: '#3d2a54' }}>Персонаж мастера</span>
+                              )}
                             </div>
                             {npc.type && (
                               <div style={{ fontSize: '12px', color: '#555' }}>{npc.type}</div>
@@ -772,6 +775,8 @@ const ScenariosPage: React.FC = () => {
                   scenarioId={s.id}
                   initialScript={s.scriptData}
                   npcs={npcByScenario[s.id] ?? []}
+                  audios={s.audios ?? []}
+                  attachments={s.attachments ?? []}
                   onScriptChange={(script) =>
                     setScenarios((prev) =>
                       prev.map((it) => (it.id === s.id ? { ...it, scriptData: script } : it))
@@ -977,7 +982,7 @@ const ScenariosPage: React.FC = () => {
                   onChange={(e) =>
                     setNpcEditing((prev) =>
                       prev.scenarioId
-                        ? { ...prev, npc: { ...prev.npc!, npcKind: (e.target.value === 'enemy' || e.target.value === 'ally' ? e.target.value : null) as 'enemy' | 'ally' | null } }
+                        ? { ...prev, npc: { ...prev.npc!, npcKind: (e.target.value === 'enemy' || e.target.value === 'ally' || e.target.value === 'story' ? e.target.value : null) as 'enemy' | 'ally' | 'story' | null } }
                         : prev
                     )
                   }
@@ -986,6 +991,7 @@ const ScenariosPage: React.FC = () => {
                   <option value="">— не указано —</option>
                   <option value="enemy">Враг (можно добавить в бой)</option>
                   <option value="ally">Союзник / нейтральный (не для боя)</option>
+                  <option value="story">Персонаж мастера (только картинка и описание)</option>
                 </select>
               </div>
               <div>

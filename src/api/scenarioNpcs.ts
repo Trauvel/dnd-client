@@ -2,8 +2,8 @@ import { API_CONFIG } from '../config';
 import { getAuthHeader } from '../utils/auth';
 import { absolutizeUrl } from './scenarios';
 
-/** 'enemy' = враг (можно добавить в бой), 'ally' = союзник/нейтральный */
-export type ScenarioNpcKind = 'enemy' | 'ally';
+/** 'enemy' = враг (в бой), 'ally' = союзник, 'story' = персонаж мастера (только картинка и описание) */
+export type ScenarioNpcKind = 'enemy' | 'ally' | 'story';
 
 export interface ScenarioNpc {
   id: string;
