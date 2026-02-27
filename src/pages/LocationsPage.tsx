@@ -41,10 +41,18 @@ const ScenariosPage: React.FC = () => {
     scenario: false,
     attachments: false,
     npc: false,
-    script: false,
+    script: true,
   });
   const toggleSection = (key: string) =>
     setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const scrollToSection = (key: string) => {
+    const el = document.getElementById(`section-${key}`);
+    if (el) {
+      setCollapsedSections((prev) => ({ ...prev, [key]: false }));
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -258,9 +266,21 @@ const ScenariosPage: React.FC = () => {
                 <button type="button" onClick={() => setSelectedScenarioId(null)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer' }}>← К списку</button>
               </div>
 
+              <nav style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fff', padding: '8px 0 12px', marginBottom: 8, borderBottom: '1px solid #eee', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <span style={{ fontSize: 12, color: '#666', marginRight: 4 }}>Перейти:</span>
+                {['scenario', 'attachments', 'npc', 'script'].map((key) => (
+                  <button key={key} type="button" onClick={() => scrollToSection(key)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #dee2e6', background: '#f8f9fa', fontSize: 12, cursor: 'pointer' }}>
+                    {key === 'scenario' && 'Сценарий'}
+                    {key === 'attachments' && 'Приложения'}
+                    {key === 'npc' && 'NPC'}
+                    {key === 'script' && 'Локации и переходы'}
+                  </button>
+                ))}
+              </nav>
+
               {/* Секция: Сценарий */}
-              <div style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
-                <button type="button" onClick={() => toggleSection('scenario')} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.scenario ? '▶' : '▼'} Сценарий</button>
+              <div id="section-scenario" style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+                <button type="button" onClick={() => toggleSection('scenario')} style={{ position: 'sticky', top: 0, zIndex: 5, width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.scenario ? '▶' : '▼'} Сценарий</button>
                 {!collapsedSections.scenario && (
                 <div style={{ padding: 12 }}>
                   <textarea
@@ -327,8 +347,8 @@ const ScenariosPage: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
-                <button type="button" onClick={() => toggleSection('attachments')} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.attachments ? '▶' : '▼'} Приложения</button>
+              <div id="section-attachments" style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+                <button type="button" onClick={() => toggleSection('attachments')} style={{ position: 'sticky', top: 0, zIndex: 5, width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.attachments ? '▶' : '▼'} Приложения</button>
                 {!collapsedSections.attachments && (
                 <div style={{ padding: 12 }}>
                 {s.attachments.length > 0 && (
@@ -614,8 +634,8 @@ const ScenariosPage: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
-                <button type="button" onClick={() => toggleSection('npc')} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.npc ? '▶' : '▼'} NPC этого сценария</button>
+              <div id="section-npc" style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+                <button type="button" onClick={() => toggleSection('npc')} style={{ position: 'sticky', top: 0, zIndex: 5, width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.npc ? '▶' : '▼'} NPC этого сценария</button>
                 {!collapsedSections.npc && (
                 <div style={{ padding: 12 }}>
                 <div style={{ marginTop: '8px' }}>
@@ -853,8 +873,8 @@ const ScenariosPage: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
-                <button type="button" onClick={() => toggleSection('script')} style={{ width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.script ? '▶' : '▼'} Локации в сценарии и переходы</button>
+              <div id="section-script" style={{ marginBottom: 12, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+                <button type="button" onClick={() => toggleSection('script')} style={{ position: 'sticky', top: 0, zIndex: 5, width: '100%', padding: '10px 12px', textAlign: 'left', border: 'none', background: '#f8f9fa', fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>{collapsedSections.script ? '▶' : '▼'} Локации в сценарии и переходы</button>
                 {!collapsedSections.script && (
                 <div style={{ padding: 12 }}>
                 <ScenarioScriptEditor

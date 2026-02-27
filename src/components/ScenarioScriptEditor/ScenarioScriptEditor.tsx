@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   saveScenarioScript,
   type ScenarioScriptData,
@@ -12,6 +12,104 @@ import type { ScenarioNpc } from '../../api/scenarioNpcs';
 function generateId(): string {
   return 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
 }
+
+/** Карточка одной локации: мемоизирована, чтобы при вводе в одной не ререндерить остальные */
+const LocationCard = React.memo(function LocationCard_(props: {
+  loc: ScenarioScriptLocation;
+  startLocationId: string | null;
+  updateLocation: (id: string, patch: Partial<ScenarioScriptLocation>) => void;
+  removeLocation: (id: string) => void;
+  setStartLocation: (id: string | null) => void;
+  audios: ScenarioFile[];
+  attachments: ScenarioFile[];
+  npcs: ScenarioNpc[];
+  situations: ScenarioScriptSituation[];
+  addSituation: (locationId: string) => void;
+  updateSituation: (id: string, patch: Partial<ScenarioScriptSituation>) => void;
+  removeSituation: (id: string) => void;
+}) {
+  const { loc, startLocationId, updateLocation, removeLocation, setStartLocation, audios, attachments, npcs, situations, addSituation, updateSituation, removeSituation } = props;
+  const locSituations = situations.filter((s) => s.locationId === loc.id);
+  return (
+    <div style={{ marginBottom: 10, padding: 8, background: '#fff', borderRadius: 6, border: '1px solid #dee2e6' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+        <input
+          type="text"
+          value={loc.title}
+          onChange={(e) => updateLocation(loc.id, { title: e.target.value })}
+          placeholder="Название локации"
+          style={{ flex: '1 1 200px', padding: '4px 8px', fontSize: 13 }}
+        />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+          <input type="radio" name="startLoc" checked={startLocationId === loc.id} onChange={() => setStartLocation(loc.id)} />
+          Старт
+        </label>
+        <button type="button" onClick={() => removeLocation(loc.id)} style={{ padding: '2px 6px', fontSize: 11, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>×</button>
+      </div>
+      <textarea value={loc.body} onChange={(e) => updateLocation(loc.id, { body: e.target.value })} placeholder="Текст сценария (что говорить, описание, что могут сделать игроки)" rows={3} style={{ width: '100%', padding: 6, fontSize: 12, marginBottom: 6, boxSizing: 'border-box' }} />
+      <textarea value={loc.notes ?? ''} onChange={(e) => updateLocation(loc.id, { notes: e.target.value })} placeholder="Заметки мастера по локации (опционально)" rows={1} style={{ width: '100%', padding: 6, fontSize: 12, marginBottom: 6, boxSizing: 'border-box' }} />
+      {audios.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <label style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Аудио локации (можно несколько)</label>
+          <select
+            multiple
+            value={loc.audioIds ?? []}
+            onChange={(e) => { const selected = Array.from(e.target.selectedOptions, (o) => o.value); updateLocation(loc.id, { audioIds: selected }); }}
+            style={{ width: '100%', minHeight: 72, padding: '4px 8px', fontSize: 12 }}
+          >
+            {audios.map((a) => (<option key={a.id} value={a.id}>{a.displayName ?? a.fileName}</option>))}
+          </select>
+        </div>
+      )}
+      {attachments.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <label style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Карты/изображения локации (можно несколько)</label>
+          <select
+            multiple
+            value={loc.mapFileIds ?? []}
+            onChange={(e) => { const selected = Array.from(e.target.selectedOptions, (o) => o.value); updateLocation(loc.id, { mapFileIds: selected }); }}
+            style={{ width: '100%', minHeight: 72, padding: '4px 8px', fontSize: 12 }}
+          >
+            {attachments.filter((a) => a.mimeType?.startsWith('image/')).map((a) => (<option key={a.id} value={a.id}>{a.displayName ?? a.fileName}</option>))}
+            {attachments.filter((a) => !a.mimeType?.startsWith('image/')).length > 0 && (
+              <>
+                <option disabled>— прочие вложения —</option>
+                {attachments.filter((a) => !a.mimeType?.startsWith('image/')).map((a) => (<option key={a.id} value={a.id}>{a.displayName ?? a.fileName}</option>))}
+              </>
+            )}
+          </select>
+        </div>
+      )}
+      <div style={{ fontSize: 12, marginBottom: 4 }}>NPC здесь (в игре появятся в книге мастера):</div>
+      <select
+        multiple
+        value={loc.npcIds ?? []}
+        onChange={(e) => { const selected = Array.from(e.target.selectedOptions, (o) => o.value); updateLocation(loc.id, { npcIds: selected }); }}
+        style={{ width: '100%', minHeight: 60, fontSize: 12 }}
+      >
+        {npcs.map((n) => (<option key={n.id} value={n.id}>{n.name}</option>))}
+      </select>
+      {(loc.npcIds?.length ?? 0) > 0 && (
+        <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Выбрано: {loc.npcIds!.length} — в книге по кнопке «Книга» в комнате появятся карточки этих NPC</div>
+      )}
+      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #eee' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <strong style={{ fontSize: 12, color: '#555' }}>Ситуации (ветки)</strong>
+          <button type="button" onClick={() => addSituation(loc.id)} style={{ padding: '2px 8px', fontSize: 11, borderRadius: 4, border: 'none', background: '#17a2b8', color: '#fff', cursor: 'pointer' }}>+ Ситуация</button>
+        </div>
+        {locSituations.map((sit) => (
+          <div key={sit.id} style={{ marginBottom: 8, padding: 8, background: '#f8f9fa', borderRadius: 6, border: '1px solid #e9ecef' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
+              <input type="text" value={sit.title} onChange={(e) => updateSituation(sit.id, { title: e.target.value })} placeholder="Название (подпись на кнопке)" style={{ flex: '1 1 180px', padding: '4px 8px', fontSize: 12 }} />
+              <button type="button" onClick={() => removeSituation(sit.id)} style={{ padding: '2px 6px', fontSize: 11, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>×</button>
+            </div>
+            <textarea value={sit.body} onChange={(e) => updateSituation(sit.id, { body: e.target.value })} placeholder="Текст ветки" rows={2} style={{ width: '100%', padding: 6, fontSize: 12, boxSizing: 'border-box' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
 
 interface ScenarioScriptEditorProps {
   scenarioId: string;
@@ -88,14 +186,14 @@ export const ScenarioScriptEditor: React.FC<ScenarioScriptEditorProps> = ({
     }));
   };
 
-  const updateLocation = (id: string, patch: Partial<ScenarioScriptLocation>) => {
+  const updateLocation = useCallback((id: string, patch: Partial<ScenarioScriptLocation>) => {
     setScript((prev) => ({
       ...prev,
       locations: (prev.locations ?? []).map((loc) => (loc.id === id ? { ...loc, ...patch } : loc)),
     }));
-  };
+  }, []);
 
-  const removeLocation = (id: string) => {
+  const removeLocation = useCallback((id: string) => {
     setScript((prev) => ({
       ...prev,
       locations: (prev.locations ?? []).filter((l) => l.id !== id),
@@ -103,30 +201,30 @@ export const ScenarioScriptEditor: React.FC<ScenarioScriptEditorProps> = ({
       branches: (prev.branches ?? []).filter((b) => b.fromId !== id && b.toId !== id),
       startLocationId: prev.startLocationId === id ? null : prev.startLocationId,
     }));
-  };
+  }, []);
 
-  const addSituation = (locationId: string) => {
+  const addSituation = useCallback((locationId: string) => {
     const id = generateId();
     setScript((prev) => ({
       ...prev,
       situations: [...(prev.situations ?? []), { id, title: 'Новая ситуация', body: '', locationId, order: (prev.situations?.length ?? 0) }],
     }));
-  };
+  }, []);
 
-  const updateSituation = (id: string, patch: Partial<ScenarioScriptSituation>) => {
+  const updateSituation = useCallback((id: string, patch: Partial<ScenarioScriptSituation>) => {
     setScript((prev) => ({
       ...prev,
       situations: (prev.situations ?? []).map((s) => (s.id === id ? { ...s, ...patch } : s)),
     }));
-  };
+  }, []);
 
-  const removeSituation = (id: string) => {
+  const removeSituation = useCallback((id: string) => {
     setScript((prev) => ({
       ...prev,
       situations: (prev.situations ?? []).filter((s) => s.id !== id),
       branches: (prev.branches ?? []).filter((b) => b.fromId !== id && b.toId !== id),
     }));
-  };
+  }, []);
 
   const addBranch = () => {
     const id = generateId();
@@ -162,9 +260,9 @@ export const ScenarioScriptEditor: React.FC<ScenarioScriptEditorProps> = ({
     }));
   };
 
-  const setStartLocation = (locId: string | null) => {
+  const setStartLocation = useCallback((locId: string | null) => {
     setScript((prev) => ({ ...prev, startLocationId: locId }));
-  };
+  }, []);
 
   return (
     <div style={{ marginTop: 16, padding: 12, background: '#f8f9fa', borderRadius: 8, border: '1px solid #dee2e6' }}>
@@ -181,105 +279,21 @@ export const ScenarioScriptEditor: React.FC<ScenarioScriptEditorProps> = ({
         </div>
         {locations.length === 0 && <div style={{ fontSize: 12, color: '#666' }}>Добавьте локации (начало игры, таверна и т.д.)</div>}
         {locations.map((loc) => (
-          <div key={loc.id} style={{ marginBottom: 10, padding: 8, background: '#fff', borderRadius: 6, border: '1px solid #dee2e6' }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
-              <input
-                type="text"
-                value={loc.title}
-                onChange={(e) => updateLocation(loc.id, { title: e.target.value })}
-                placeholder="Название локации"
-                style={{ flex: '1 1 200px', padding: '4px 8px', fontSize: 13 }}
-              />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                <input type="radio" name="startLoc" checked={script.startLocationId === loc.id} onChange={() => setStartLocation(loc.id)} />
-                Старт
-              </label>
-              <button type="button" onClick={() => removeLocation(loc.id)} style={{ padding: '2px 6px', fontSize: 11, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>×</button>
-            </div>
-            <textarea value={loc.body} onChange={(e) => updateLocation(loc.id, { body: e.target.value })} placeholder="Текст сценария (что говорить, описание, что могут сделать игроки)" rows={3} style={{ width: '100%', padding: 6, fontSize: 12, marginBottom: 6, boxSizing: 'border-box' }} />
-            <textarea value={loc.notes ?? ''} onChange={(e) => updateLocation(loc.id, { notes: e.target.value })} placeholder="Заметки мастера по локации (опционально)" rows={1} style={{ width: '100%', padding: 6, fontSize: 12, marginBottom: 6, boxSizing: 'border-box' }} />
-            {audios.length > 0 && (
-              <div style={{ marginBottom: 6 }}>
-                <label style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Аудио локации (можно несколько)</label>
-                <select
-                  multiple
-                  value={loc.audioIds ?? []}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions, (o) => o.value);
-                    updateLocation(loc.id, { audioIds: selected });
-                  }}
-                  style={{ width: '100%', minHeight: 72, padding: '4px 8px', fontSize: 12 }}
-                >
-                  {audios.map((a) => (
-                    <option key={a.id} value={a.id}>{a.displayName ?? a.fileName}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {attachments.length > 0 && (
-              <div style={{ marginBottom: 6 }}>
-                <label style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Карты/изображения локации (можно несколько)</label>
-                <select
-                  multiple
-                  value={loc.mapFileIds ?? []}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions, (o) => o.value);
-                    updateLocation(loc.id, { mapFileIds: selected });
-                  }}
-                  style={{ width: '100%', minHeight: 72, padding: '4px 8px', fontSize: 12 }}
-                >
-                  {attachments.filter((a) => a.mimeType?.startsWith('image/')).map((a) => (
-                    <option key={a.id} value={a.id}>{a.displayName ?? a.fileName}</option>
-                  ))}
-                  {attachments.filter((a) => !a.mimeType?.startsWith('image/')).length > 0 && (
-                    <>
-                      <option disabled>— прочие вложения —</option>
-                      {attachments.filter((a) => !a.mimeType?.startsWith('image/')).map((a) => (
-                        <option key={a.id} value={a.id}>{a.displayName ?? a.fileName}</option>
-                      ))}
-                    </>
-                  )}
-                </select>
-              </div>
-            )}
-            <div style={{ fontSize: 12, marginBottom: 4 }}>NPC здесь (в игре появятся в книге мастера):</div>
-            <select
-              multiple
-              value={loc.npcIds ?? []}
-              onChange={(e) => {
-                const selected = Array.from(e.target.selectedOptions, (o) => o.value);
-                updateLocation(loc.id, { npcIds: selected });
-              }}
-              style={{ width: '100%', minHeight: 60, fontSize: 12 }}
-            >
-              {npcs.map((n) => (
-                <option key={n.id} value={n.id}>{n.name}</option>
-              ))}
-            </select>
-            {(loc.npcIds?.length ?? 0) > 0 && (
-              <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
-                Выбрано: {loc.npcIds!.length} — в книге по кнопке «Книга» в комнате появятся карточки этих NPC
-              </div>
-            )}
-            {/* Ситуации этой локации */}
-            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #eee' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <strong style={{ fontSize: 12, color: '#555' }}>Ситуации (ветки)</strong>
-                <button type="button" onClick={() => addSituation(loc.id)} style={{ padding: '2px 8px', fontSize: 11, borderRadius: 4, border: 'none', background: '#17a2b8', color: '#fff', cursor: 'pointer' }}>
-                  + Ситуация
-                </button>
-              </div>
-              {situations.filter((s) => s.locationId === loc.id).map((sit) => (
-                <div key={sit.id} style={{ marginBottom: 8, padding: 8, background: '#f8f9fa', borderRadius: 6, border: '1px solid #e9ecef' }}>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
-                    <input type="text" value={sit.title} onChange={(e) => updateSituation(sit.id, { title: e.target.value })} placeholder="Название (подпись на кнопке)" style={{ flex: '1 1 180px', padding: '4px 8px', fontSize: 12 }} />
-                    <button type="button" onClick={() => removeSituation(sit.id)} style={{ padding: '2px 6px', fontSize: 11, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>×</button>
-                  </div>
-                  <textarea value={sit.body} onChange={(e) => updateSituation(sit.id, { body: e.target.value })} placeholder="Текст ветки" rows={2} style={{ width: '100%', padding: 6, fontSize: 12, boxSizing: 'border-box' }} />
-                </div>
-              ))}
-            </div>
-          </div>
+          <LocationCard
+            key={loc.id}
+            loc={loc}
+            startLocationId={script.startLocationId ?? null}
+            updateLocation={updateLocation}
+            removeLocation={removeLocation}
+            setStartLocation={setStartLocation}
+            audios={audios}
+            attachments={attachments}
+            npcs={npcs}
+            situations={situations}
+            addSituation={addSituation}
+            updateSituation={updateSituation}
+            removeSituation={removeSituation}
+          />
         ))}
       </div>
 
