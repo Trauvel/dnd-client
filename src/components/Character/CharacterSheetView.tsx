@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { updateCharacter, type Character } from '../../api/characters';
+import { searchUsers, type SearchUserItem } from '../../api/auth';
+import { useAuth } from '../../store/authContext';
 import { xpToLevel, getProficiencyBonus } from '../../utils/dndLevel';
 import {
   type CharacterSheetData,
@@ -59,12 +61,35 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
   onSave,
   roomCode,
 }) => {
+  const { user } = useAuth();
+  const currentUserId = user?.id;
   const [character, setCharacter] = useState<Character>(initialCharacter);
+  const isOwner = character.userId === currentUserId;
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editorSearchQuery, setEditorSearchQuery] = useState('');
+  const [editorSearchResults, setEditorSearchResults] = useState<SearchUserItem[]>([]);
+  const [editorSearching, setEditorSearching] = useState(false);
 
   const sheetData: CharacterSheetData = getSheetData(character);
+  const editorIds = character.editorUserIds ?? [];
+  const editorNames = character.editorUserNames ?? {};
+
+  const doEditorSearch = async () => {
+    const q = editorSearchQuery.trim();
+    if (q.length < 2) return;
+    setEditorSearching(true);
+    setEditorSearchResults([]);
+    try {
+      const users = await searchUsers(q);
+      setEditorSearchResults(users);
+    } catch {
+      setEditorSearchResults([]);
+    } finally {
+      setEditorSearching(false);
+    }
+  };
 
   const updateStat = (field: keyof Character, value: unknown) => {
     if (!canEdit) return;
@@ -131,6 +156,9 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
         skills: character.skills ?? undefined,
         characterData: character.characterData ?? undefined,
       };
+      if (isOwner && character.editorUserIds !== undefined) {
+        updateData.editorUserIds = character.editorUserIds;
+      }
       const updated = await updateCharacter(character.id, updateData, roomCode);
       setCharacter(updated);
       setSaveMessage('Изменения сохранены');
@@ -176,6 +204,90 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
         </div>
         {error && <div style={{ color: '#dc3545', marginTop: 8, fontSize: 14 }}>{error}</div>}
       </div>
+
+      {/* Доступ к карточке — только владелец может добавлять/удалять редакторов */}
+      {canEdit && isOwner && (
+        <div style={{ marginBottom: 16, padding: 12, border: '1px solid #dee2e6', borderRadius: 8, background: '#f8f9fa' }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 14 }}>Доступ к карточке</h2>
+          <p style={{ margin: '0 0 8px', fontSize: 12, color: '#666' }}>
+            Пользователи с доступом могут редактировать карточку вне игры (например, мастер).
+          </p>
+          <ul style={{ margin: '0 0 10px', paddingLeft: 20 }}>
+            {editorIds.map((id) => (
+              <li key={id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span>{editorNames[id] || id}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCharacter((prev) => ({
+                      ...prev,
+                      editorUserIds: (prev.editorUserIds ?? []).filter((x) => x !== id),
+                      editorUserNames: (() => {
+                        const next = { ...(prev.editorUserNames ?? {}) };
+                        delete next[id];
+                        return next;
+                      })(),
+                    }));
+                  }}
+                  style={{ padding: '2px 8px', fontSize: 12, border: '1px solid #dc3545', color: '#dc3545', background: '#fff', borderRadius: 4, cursor: 'pointer' }}
+                >
+                  Удалить
+                </button>
+              </li>
+            ))}
+            {editorIds.length === 0 && <li style={{ color: '#999', fontSize: 12 }}>Никого не добавлено</li>}
+          </ul>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input
+              type="text"
+              value={editorSearchQuery}
+              onChange={(e) => setEditorSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), doEditorSearch())}
+              placeholder="Имя пользователя (минимум 2 символа)"
+              style={{ padding: '6px 10px', border: '1px solid #dee2e6', borderRadius: 4, width: 220 }}
+            />
+            <button
+              type="button"
+              onClick={doEditorSearch}
+              disabled={editorSearching || editorSearchQuery.trim().length < 2}
+              style={{ padding: '6px 12px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 4, cursor: editorSearching ? 'not-allowed' : 'pointer', fontSize: 13 }}
+            >
+              {editorSearching ? 'Поиск...' : 'Найти'}
+            </button>
+          </div>
+          {editorSearchResults.length > 0 && (
+            <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+              {editorSearchResults.map((u) => {
+                const already = editorIds.includes(u.id) || u.id === currentUserId;
+                return (
+                  <li key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span>{u.username}</span>
+                    {already ? (
+                      <span style={{ fontSize: 12, color: '#999' }}>{u.id === currentUserId ? 'Вы' : 'Уже добавлен'}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCharacter((prev) => ({
+                            ...prev,
+                            editorUserIds: [...(prev.editorUserIds ?? []), u.id],
+                            editorUserNames: { ...(prev.editorUserNames ?? {}), [u.id]: u.username },
+                          }));
+                          setEditorSearchResults([]);
+                          setEditorSearchQuery('');
+                        }}
+                        style={{ padding: '2px 8px', fontSize: 12, background: '#28a745', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                      >
+                        Добавить
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Портрет */}
       <div className="character-portrait-section" style={{ marginBottom: 16 }}>

@@ -110,11 +110,26 @@ export const DEFAULT_SHEET_DATA: CharacterSheetData = {
   spellSlots: [],
 };
 
-/** Предустановленные состояния для чекбоксов */
+/** Предустановленные состояния для чекбоксов (D&D 5e) */
 export const CONDITION_OPTIONS: { key: string; label: string }[] = [
-  { key: 'concentration', label: 'Концентрация' },
-  { key: 'poisoned', label: 'Отравлен' },
-  { key: 'restrained', label: 'Сдержан' },
-  { key: 'frightened', label: 'Испуган' },
-  { key: 'incapacitated', label: 'Недееспособен' },
+  { key: 'unconscious', label: 'Бессознательный' },
+  { key: 'frightened', label: 'Испуганный' },
+  { key: 'invisible', label: 'Невидимый' },
+  { key: 'incapacitated', label: 'Недееспособный' },
+  { key: 'deafened', label: 'Оглохший' },
+  { key: 'petrified', label: 'Окаменевший' },
+  { key: 'restrained', label: 'Опутанный' },
+  { key: 'blinded', label: 'Ослеплённый' },
+  { key: 'poisoned', label: 'Отравленный' },
+  { key: 'charmed', label: 'Очарованный' },
+  { key: 'stunned', label: 'Ошеломлённый' },
+  { key: 'paralyzed', label: 'Парализованный' },
+  { key: 'prone', label: 'Сбитый с ног / Лежащий ничком' },
+  { key: 'grappled', label: 'Схваченный' },
+  { key: 'exhaustion1', label: 'Истощение 1' },
+  { key: 'exhaustion2', label: 'Истощение 2' },
+  { key: 'exhaustion3', label: 'Истощение 3' },
+  { key: 'exhaustion4', label: 'Истощение 4' },
+  { key: 'exhaustion5', label: 'Истощение 5' },
+  { key: 'exhaustion6', label: 'Истощение 6' },
 ];

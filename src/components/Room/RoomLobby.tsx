@@ -14,6 +14,8 @@ import { getScenarioNpcsForView, type ScenarioNpc } from '../../api/scenarioNpcs
 import { MasterBookPanel } from './MasterBookPanel';
 import { NotesBookViewPanel } from './NotesBookViewPanel';
 import { DraggableWindow } from './DraggableWindow';
+import { VoiceInputPanel } from './VoiceInputPanel';
+import { useSpeechLog } from '../../hooks/useSpeechLog';
 
 const DICE_SIDES = [2, 3, 4, 5, 6, 8, 10, 12, 20, 100];
 
@@ -65,6 +67,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [audioVolume, setAudioVolume] = useState(0.5);
   const audioVolumeRef = useRef(0.5);
   const [logWindowOpen, setLogWindowOpen] = useState(false);
+  const [speechLogWindowOpen, setSpeechLogWindowOpen] = useState(false);
   const roomAudioRefs = useRef<Record<string, HTMLAudioElement>>({});
   const roomAudioRef = useRef<HTMLAudioElement | null>(null);
   const roomAudioEndedHandlerRef = useRef<(() => void) | null>(null);
@@ -92,6 +95,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const [tokenTempPosition, setTokenTempPosition] = useState<{ x: number; y: number } | null>(null);
   const tacticsMapRef = useRef<HTMLDivElement>(null);
   const tokenDragPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const { entries: speechLogEntries, isConnected: speechLogConnected, clear: clearSpeechLog, isAvailable: speechLogAvailable } = useSpeechLog(roomCode, true);
 
   const openCharacterSheet = (characterId: string | undefined) => {
     if (!characterId) {
@@ -593,6 +598,21 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const myPlayer = displayPlayers.find((p) => p.userId === user?.id);
   const myCharacter = myPlayer?.characterId && characterPreviews[myPlayer.characterId] ? characterPreviews[myPlayer.characterId] : null;
 
+  const getSpeechPlayerLabel = (playerId: string) => {
+    if (!room) return playerId || '—';
+    const p = room.players.find((r) => r.userId === playerId);
+    if (!p) return playerId || '—';
+    const ch = p.characterId ? characterPreviews[p.characterId] : null;
+    return ch?.characterName ?? p.username ?? playerId;
+  };
+
+  const speechPhraseHints = room
+    ? [...new Set([
+        ...room.players.map((p) => p.username).filter(Boolean),
+        ...Object.values(characterPreviews).map((c) => c?.characterName).filter(Boolean),
+      ])]
+    : [];
+
   const handleHpChange = async (delta: number) => {
     if (!myPlayer?.characterId || !myCharacter || hpUpdating) return;
     const newHp = Math.max(0, Math.min(myCharacter.maxHp ?? 999, (myCharacter.hp ?? 0) + delta));
@@ -865,6 +885,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           })()}
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {user?.id && <VoiceInputPanel roomId={roomCode} playerId={user.id} phraseHints={speechPhraseHints} />}
           <button
             type="button"
             onClick={() => setLogWindowOpen(true)}
@@ -1377,6 +1398,25 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           >
             Логи {diceLog.length > 0 ? `(${diceLog.length})` : ''}
           </button>
+          {speechLogAvailable && (
+            <button
+              type="button"
+              onClick={() => setSpeechLogWindowOpen(true)}
+              style={{
+                marginTop: '8px',
+                padding: '8px 12px',
+                width: '100%',
+                border: '1px solid #dee2e6',
+                borderRadius: '6px',
+                background: '#f8f9fa',
+                fontSize: '13px',
+                cursor: 'pointer',
+                color: '#495057',
+              }}
+            >
+              Логи разговоров {speechLogEntries.length > 0 ? `(${speechLogEntries.length})` : ''}
+            </button>
+          )}
         </aside>
 
         {/* Центр — режим тактики (карта + токены) или зона боя или вложение */}
@@ -2993,6 +3033,67 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   <strong>{entry.total}</strong>
                 </div>
               ))
+            )}
+          </div>
+        </DraggableWindow>
+      )}
+
+      {speechLogWindowOpen && speechLogAvailable && (
+        <DraggableWindow title="Логи разговоров" onClose={() => setSpeechLogWindowOpen(false)} width={480} maxHeight="70vh">
+          <div style={{ padding: '12px', overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {!speechLogConnected && (
+              <div style={{ color: '#999', fontSize: '12px', marginBottom: '4px' }}>Подключение…</div>
+            )}
+            {speechLogEntries.length === 0 ? (
+              <div style={{ color: '#999', fontSize: '13px' }}>Пока нет реплик</div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={clearSpeechLog}
+                    style={{ fontSize: '12px', padding: '4px 8px', border: '1px solid #dee2e6', borderRadius: '4px', background: '#fff', cursor: 'pointer', color: '#666' }}
+                  >
+                    Очистить
+                  </button>
+                </div>
+                {(() => {
+                  type Block = { playerId: string; text: string; tsStart: number; tsEnd: number };
+                  const blocks: Block[] = [];
+                  for (const e of speechLogEntries) {
+                    const last = blocks[blocks.length - 1];
+                    if (last && last.playerId === e.playerId) {
+                      last.text = last.text + ' ' + e.text;
+                      last.tsEnd = e.tsServer;
+                    } else {
+                      blocks.push({ playerId: e.playerId, text: e.text, tsStart: e.tsServer, tsEnd: e.tsServer });
+                    }
+                  }
+                  const formatTime = (ts: number) => {
+                    const d = new Date(ts);
+                    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  };
+                  return [...blocks].reverse().map((block, i) => (
+                    <div
+                      key={`${block.tsStart}-${i}-${block.playerId}`}
+                      style={{
+                        padding: '10px 12px',
+                        background: '#f8f9fa',
+                        borderRadius: '8px',
+                        borderLeft: '3px solid #6f42c1',
+                        fontSize: '13px',
+                        color: '#333',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', gap: '8px', flexWrap: 'wrap' }}>
+                        <strong style={{ color: '#495057' }}>{getSpeechPlayerLabel(block.playerId)}</strong>
+                        <span style={{ fontSize: '11px', color: '#868e96' }}>{formatTime(block.tsStart)}</span>
+                      </div>
+                      <span>{block.text}</span>
+                    </div>
+                  ));
+                })()}
+              </>
             )}
           </div>
         </DraggableWindow>

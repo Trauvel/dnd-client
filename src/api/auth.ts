@@ -91,3 +91,22 @@ export async function getProfile(): Promise<{ user: User }> {
   return response.json();
 }
 
+export interface SearchUserItem {
+  id: string;
+  username: string;
+}
+
+/**
+ * Поиск пользователей по имени (для выбора редакторов карточки персонажа)
+ */
+export async function searchUsers(query: string): Promise<SearchUserItem[]> {
+  const q = encodeURIComponent((query || '').trim());
+  const response = await fetch(
+    `${API_CONFIG.WEBSITE_API_URL}/api/auth/users/search?q=${q}`,
+    { method: 'GET', headers: { ...getAuthHeader() } }
+  );
+  if (!response.ok) throw new Error('Ошибка поиска');
+  const data = await response.json();
+  return data.users ?? [];
+}
+

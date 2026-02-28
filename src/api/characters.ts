@@ -39,6 +39,10 @@ export interface Character {
   languages?: string | null;
   skills?: string | null;
   characterData?: any;
+  /** ID пользователей с правом редактирования карточки вне игры */
+  editorUserIds?: string[];
+  /** Имена редакторов: id → username */
+  editorUserNames?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -77,6 +81,7 @@ export interface UpdateCharacterRequest {
   languages?: string;
   skills?: string;
   characterData?: any;
+  editorUserIds?: string[];
 }
 
 export interface ErrorResponse {
