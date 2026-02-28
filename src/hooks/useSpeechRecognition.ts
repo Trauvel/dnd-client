@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { API_CONFIG } from '../config';
 
-const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || (window as any).webkitSpeechRecognition) : null;
+const SR = typeof window !== 'undefined' ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) : null;
 const SpeechRecognitionPhrase =
   typeof window !== 'undefined' ? (window as any).SpeechRecognitionPhrase : null;
 const HAS_PHRASES = !!(SR && SpeechRecognitionPhrase);
@@ -90,7 +90,7 @@ export function useSpeechRecognition(roomId: string, playerId: string, phraseHin
       } catch (_) {}
     }
 
-    recognition.onresult = (event: globalThis.SpeechRecognitionEvent) => {
+    recognition.onresult = (event: { resultIndex: number; results: { length: number; [i: number]: { isFinal: boolean; length: number; [j: number]: { transcript?: string } } } }) => {
       let interim = '';
       let finalText = '';
 

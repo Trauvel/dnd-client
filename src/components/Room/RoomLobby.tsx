@@ -606,10 +606,10 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     return ch?.characterName ?? p.username ?? playerId;
   };
 
-  const speechPhraseHints = room
+  const speechPhraseHints: string[] = room
     ? [...new Set([
-        ...room.players.map((p) => p.username).filter(Boolean),
-        ...Object.values(characterPreviews).map((c) => c?.characterName).filter(Boolean),
+        ...room.players.map((p) => p.username).filter((x): x is string => Boolean(x)),
+        ...Object.values(characterPreviews).map((c) => c?.characterName).filter((x): x is string => Boolean(x)),
       ])]
     : [];
 
