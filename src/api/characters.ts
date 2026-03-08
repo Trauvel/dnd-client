@@ -143,10 +143,11 @@ export async function getCharacterForView(
   });
 
   if (!response.ok) {
-    if (response.status === 403) throw new Error('Доступ запрещён');
-    if (response.status === 404) throw new Error('Персонаж не найден');
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.error || 'Ошибка загрузки персонажа');
+    const message = err?.error || 'Ошибка загрузки персонажа';
+    if (response.status === 403) throw new Error(message);
+    if (response.status === 404) throw new Error(message);
+    throw new Error(message);
   }
 
   const data = await response.json();
