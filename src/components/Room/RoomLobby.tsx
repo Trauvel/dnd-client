@@ -68,7 +68,6 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const audioVolumeRef = useRef(0.5);
   const [logWindowOpen, setLogWindowOpen] = useState(false);
   const [speechLogWindowOpen, setSpeechLogWindowOpen] = useState(false);
-  const roomAudioRefs = useRef<Record<string, HTMLAudioElement>>({});
   const roomAudioRef = useRef<HTMLAudioElement | null>(null);
   const roomAudioEndedHandlerRef = useRef<(() => void) | null>(null);
   const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -356,29 +355,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     loadScenario();
   }, [room?.scenarioId]);
 
-  // Предзагрузка аудио сценария, чтобы при нажатии «Играть» звук шёл сразу у всех
-  const scenarioAudioIdsKey = useMemo(
-    () => (scenario?.audios ?? []).map((a) => a.id).sort().join(','),
-    [scenario?.id, scenario?.audios]
-  );
-  useEffect(() => {
-    const audios = scenario?.audios ?? [];
-    if (audios.length === 0) {
-      roomAudioRefs.current = {};
-      return;
-    }
-    const next: Record<string, HTMLAudioElement> = {};
-    audios.forEach((a) => {
-      const el = new Audio(a.url);
-      el.preload = 'auto';
-      next[a.id] = el;
-    });
-    roomAudioRefs.current = next;
-    return () => {
-      Object.values(roomAudioRefs.current).forEach((el) => el.pause());
-      roomAudioRefs.current = {};
-    };
-  }, [scenarioAudioIdsKey, scenario?.audios]);
+  // Аудио не предзагружаем — грузится только при воспроизведении (audio:play от мастера), чтобы не съедать десятки МБ при перезагрузке
 
   useEffect(() => {
     audioVolumeRef.current = audioVolume;
@@ -1077,7 +1054,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
         }}
       >
         {/* Скрытый аудио для воспроизведения треков комнаты — всегда в DOM, чтобы ref был при первом audio:play */}
-        <audio ref={roomAudioRef} preload="auto" style={{ position: 'absolute', left: -9999, width: 0, height: 0 }} />
+        <audio ref={roomAudioRef} preload="none" style={{ position: 'absolute', left: -9999, width: 0, height: 0 }} />
         {/* Левая панель — кубики */}
         <aside
           style={{
