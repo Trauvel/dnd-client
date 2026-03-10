@@ -1,0 +1,91 @@
+.game-page {
+  min-height: 100vh;
+  background: url('/background.webp') center/cover no-repeat fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 24px 32px;
+  box-sizing: border-box;
+}
+
+.game-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.15) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.game-page-content {
+  position: relative;
+  z-index: 1;
+  max-width: 320px;
+}
+
+.game-page-title {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 20px 0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.game-page-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-page-btn {
+  padding: 10px 18px;
+  font-size: 13px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 0.2s, transform 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.game-page-btn:hover {
+  opacity: 0.92;
+  transform: translateX(2px);
+}
+
+.game-page-btn-create {
+  background: #2d5a27;
+  color: #fff;
+}
+
+.game-page-btn-join {
+  background: #1a4a7a;
+  color: #fff;
+}
+
+.game-page-btn-find {
+  background: #0d4a4a;
+  color: #fff;
+}
+
+.game-page-history {
+  position: relative;
+  z-index: 1;
+  margin-top: 24px;
+  max-width: 420px;
+}
+
+.game-page-history > div {
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 8px;
+  padding: 16px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.game-page-history h2 {
+  color: rgba(255, 255, 255, 0.95);
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}

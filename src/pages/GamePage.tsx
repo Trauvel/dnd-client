@@ -6,6 +6,7 @@ import { JoinRoomForm } from "../components/Room/JoinRoomForm";
 import { FindRoomPanel } from "../components/Room/FindRoomPanel";
 import { RoomLobby } from "../components/Room/RoomLobby";
 import { RoomHistory } from "../components/Room/RoomHistory";
+import "./GamePage.css";
 
 type GamePageView = 'menu' | 'create' | 'join' | 'find' | 'lobby';
 
@@ -89,58 +90,36 @@ const GamePage: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <h1 style={{ color: '#333', marginBottom: '30px', textAlign: 'center' }}>Игра</h1>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <button
-          onClick={() => setView('create')}
-          style={{
-            padding: '15px 30px',
-            fontSize: '16px',
-            background: '#28a745',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          Создать лобби
-        </button>
-
-        <button
-          onClick={() => { setJoinInitialCode(''); setView('join'); }}
-          style={{
-            padding: '15px 30px',
-            fontSize: '16px',
-            background: '#007bff',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          Присоединиться к лобби
-        </button>
-
-        <button
-          onClick={() => setView('find')}
-          style={{
-            padding: '15px 30px',
-            fontSize: '16px',
-            background: '#17a2b8',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          Найти комнату
-        </button>
+    <div className="game-page">
+      <div className="game-page-content">
+        <h1 className="game-page-title">Игра</h1>
+        <div className="game-page-buttons">
+          <button
+            type="button"
+            className="game-page-btn game-page-btn-create"
+            onClick={() => setView('create')}
+          >
+            Создать лобби
+          </button>
+          <button
+            type="button"
+            className="game-page-btn game-page-btn-join"
+            onClick={() => { setJoinInitialCode(''); setView('join'); }}
+          >
+            Присоединиться к лобби
+          </button>
+          <button
+            type="button"
+            className="game-page-btn game-page-btn-find"
+            onClick={() => setView('find')}
+          >
+            Найти комнату
+          </button>
+        </div>
       </div>
-
-      {/* История игр */}
-      <RoomHistory onRoomRestored={handleRoomRestored} refreshTrigger={historyRefreshTrigger} />
+      <div className="game-page-history">
+        <RoomHistory onRoomRestored={handleRoomRestored} refreshTrigger={historyRefreshTrigger} />
+      </div>
     </div>
   );
 };

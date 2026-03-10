@@ -31,6 +31,9 @@ const Header: React.FC = () => {
               <Link to="/notes-book" style={{ color: "#fff", textDecoration: "none" }}>
                 Книга заметок
               </Link>
+              <Link to="/reference-books" style={{ color: "#fff", textDecoration: "none" }}>
+                Справочники
+              </Link>
             </>
           ) : (
             <>

@@ -38,6 +38,7 @@ interface MasterBookPanelProps {
 const sideCol = {
   width: 200,
   minWidth: 200,
+  minHeight: 0,
   borderRight: '1px solid #dee2e6',
   overflowY: 'auto' as const,
   padding: 12,
@@ -46,6 +47,7 @@ const sideCol = {
 const rightCol = {
   width: 240,
   minWidth: 240,
+  minHeight: 0,
   borderLeft: '1px solid #dee2e6',
   overflowY: 'auto' as const,
   padding: 12,
@@ -530,7 +532,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
           </aside>
 
           {/* Центр — текст текущей локации/ситуации или редактирование заметки */}
-          <main style={{ flex: 1, overflowY: 'auto', padding: 16, minWidth: 0 }}>
+          <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16, minWidth: 0 }}>
             {selectedNotesSection ? (
               <>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>Редактирование раздела книги заметок</div>

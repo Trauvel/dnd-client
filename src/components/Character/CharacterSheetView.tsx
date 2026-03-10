@@ -15,6 +15,7 @@ import {
   type WeaponDamageType,
   CONDITION_OPTIONS,
 } from '../../types/characterSheet';
+import { parseHeight, parseWeight, heightToApi, weightToApi, HEIGHT_CM, WEIGHT_KG } from '../../utils/characterValidators';
 import '../../pages/PlayerPage.css';
 
 function normalizeWeapon(
@@ -71,6 +72,7 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
   const [editorSearchQuery, setEditorSearchQuery] = useState('');
   const [editorSearchResults, setEditorSearchResults] = useState<SearchUserItem[]>([]);
   const [editorSearching, setEditorSearching] = useState(false);
+  const [sharePanelOpen, setSharePanelOpen] = useState(false);
 
   const sheetData: CharacterSheetData = getSheetData(character);
   const editorIds = character.editorUserIds ?? [];
@@ -142,8 +144,8 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
         classArchetype: character.classArchetype ?? undefined,
         race: character.race,
         subrace: character.subrace ?? undefined,
-        weight: character.weight ?? undefined,
-        height: character.height ?? undefined,
+        weight: weightToApi(character.weight) ?? character.weight ?? undefined,
+        height: heightToApi(character.height) ?? character.height ?? undefined,
         armorClass: character.armorClass,
         initiative: character.initiative,
         speed: character.speed,
@@ -192,21 +194,38 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
     <div className="player-page character-sheet-page" style={{ margin: 0, minHeight: 'auto', padding: 16, width: '100%', background: '#fff', color: '#000' }}>
       <div className="player-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 20 }}>{character.characterName || 'Безымянный'}</h1>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {canEdit && (
             <button onClick={handleSave} disabled={isSaving} style={{ padding: '8px 16px', background: isSaving ? '#6c757d' : '#28a745', color: '#fff', border: 'none', borderRadius: 6, cursor: isSaving ? 'not-allowed' : 'pointer', fontSize: 14 }}>
               {isSaving ? 'Сохранение...' : 'Сохранить'}
             </button>
           )}
           {saveMessage && <span style={{ color: '#28a745', fontSize: 14 }}>{saveMessage}</span>}
+          {canEdit && isOwner && (
+            <button
+              type="button"
+              onClick={() => setSharePanelOpen((v) => !v)}
+              style={{
+                padding: '8px 16px',
+                background: sharePanelOpen ? '#5a6268' : '#6c757d',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 14,
+              }}
+            >
+              Поделиться
+            </button>
+          )}
           <button type="button" onClick={handleExportJson} style={{ padding: '8px 16px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Экспорт JSON</button>
           <button onClick={onClose} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Закрыть</button>
         </div>
         {error && <div style={{ color: '#dc3545', marginTop: 8, fontSize: 14 }}>{error}</div>}
       </div>
 
-      {/* Доступ к карточке — только владелец может добавлять/удалять редакторов */}
-      {canEdit && isOwner && (
+      {/* Доступ к карточке — открывается по кнопке «Поделиться» */}
+      {canEdit && isOwner && sharePanelOpen && (
         <div style={{ marginBottom: 16, padding: 12, border: '1px solid #dee2e6', borderRadius: 8, background: '#f8f9fa' }}>
           <h2 style={{ margin: '0 0 8px', fontSize: 14 }}>Доступ к карточке</h2>
           <p style={{ margin: '0 0 8px', fontSize: 12, color: '#666' }}>
@@ -322,8 +341,8 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
         <div><label style={labelStyle}>Архетип класса</label><br />{input('text', character.classArchetype ?? '', (v) => updateStat('classArchetype', v), { placeholder: 'например Вор' })}</div>
         <div><label style={labelStyle}>Мировоззрение</label><br /><input type="text" value={sheetData.alignment ?? ''} onChange={(e) => updateSheetData({ alignment: e.target.value })} disabled={!canEdit} style={sheetStyle} /></div>
         <div><label style={labelStyle}>Подраса</label><br />{input('text', character.subrace ?? '', (v) => updateStat('subrace', v), { placeholder: 'например Дроу' })}</div>
-        <div><label style={labelStyle}>Вес</label><br />{input('text', character.weight ?? '', (v) => updateStat('weight', v), { placeholder: '55 кг' })}</div>
-        <div><label style={labelStyle}>Рост</label><br />{input('text', character.height ?? '', (v) => updateStat('height', v), { placeholder: '185 см' })}</div>
+        <div><label style={labelStyle}>Вес (кг)</label><br /><input type="number" min={WEIGHT_KG.min} max={WEIGHT_KG.max} value={parseWeight(character.weight) ?? ''} onChange={(e) => { const v = e.target.value; const n = v === '' ? null : parseInt(v, 10); updateStat('weight', n != null && !Number.isNaN(n) ? String(n) : ''); }} disabled={!canEdit} readOnly={!canEdit} placeholder="55" style={!canEdit ? { background: '#f0f0f0', cursor: 'default' } : undefined} /></div>
+        <div><label style={labelStyle}>Рост (см)</label><br /><input type="number" min={HEIGHT_CM.min} max={HEIGHT_CM.max} value={parseHeight(character.height) ?? ''} onChange={(e) => { const v = e.target.value; const n = v === '' ? null : parseInt(v, 10); updateStat('height', n != null && !Number.isNaN(n) ? String(n) : ''); }} disabled={!canEdit} readOnly={!canEdit} placeholder="185" style={!canEdit ? { background: '#f0f0f0', cursor: 'default' } : undefined} /></div>
       </div>
       <div style={{ marginBottom: 16 }}>
         <label style={labelStyle}>Предистория</label>

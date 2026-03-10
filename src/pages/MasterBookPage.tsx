@@ -255,6 +255,7 @@ const MasterBookPage: React.FC = () => {
           display: 'flex',
           gap: 0,
           minHeight: 400,
+          maxHeight: 'calc(100vh - 220px)',
           background: '#fff',
           borderRadius: 12,
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
@@ -266,13 +267,14 @@ const MasterBookPage: React.FC = () => {
           style={{
             width: 220,
             minWidth: 220,
+            minHeight: 0,
             borderRight: '1px solid #dee2e6',
             background: '#f8f9fa',
             padding: 12,
             display: 'flex',
             flexDirection: 'column',
             gap: 8,
-            overflow: 'scroll'
+            overflowY: 'auto',
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>
@@ -486,6 +488,7 @@ const MasterBookPage: React.FC = () => {
         <main
           style={{
             flex: 1,
+            minHeight: 0,
             padding: 20,
             overflowY: 'auto',
             display: 'flex',
