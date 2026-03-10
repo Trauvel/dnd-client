@@ -618,7 +618,7 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 6 }}>Аудио локации</div>
                   {locationAudios.map((audioFile) => (
                     <div key={audioFile.id} style={{ marginBottom: 8 }}>
-                      <audio src={audioFile.url} controls style={{ width: '100%', maxWidth: 400 }} />
+                      <audio src={audioFile.url} controls preload="none" style={{ width: '100%', maxWidth: 400 }} />
                       <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{audioFile.displayName ?? audioFile.fileName}</div>
                     </div>
                   ))}
