@@ -128,17 +128,10 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
 
   useEffect(() => {
     loadRoomInfo();
-    // Подключаемся к WebSocket комнате
+    // Подключаемся к WebSocket комнате; обновления комнаты приходят по сокету (room:joined, room:player-joined и т.д.)
     if (!isConnected) {
       connect(roomCode);
     }
-
-    // Обновляем информацию о комнате периодически
-    const interval = setInterval(() => {
-      loadRoomInfo();
-    }, 5000); // Каждые 5 секунд
-
-    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode, isConnected]);
 
@@ -258,6 +251,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
     socket.on('character:preview-update', handleCharacterPreviewUpdate);
 
     const handleAudioPlay = (data: { url: string; loop: boolean; id: string }) => {
+      if (!data?.url) return;
       let el = roomAudioRef.current;
       if (!el) {
         const fallback = fallbackAudioRef.current;
@@ -265,8 +259,10 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
           fallback.pause();
           fallback.src = '';
         }
-        fallbackAudioRef.current = new Audio(data.url);
-        el = fallbackAudioRef.current;
+        const audio = new Audio();
+        audio.crossOrigin = 'anonymous';
+        fallbackAudioRef.current = audio;
+        el = audio;
       } else {
         if (fallbackAudioRef.current) {
           fallbackAudioRef.current.pause();
@@ -275,6 +271,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
         if (roomAudioEndedHandlerRef.current) {
           el.removeEventListener('ended', roomAudioEndedHandlerRef.current);
         }
+        el.crossOrigin = 'anonymous';
       }
       el.src = data.url;
       el.loop = data.loop;
@@ -289,6 +286,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
       const playWhenReady = () => {
         el.play().catch(() => {});
       };
+      // С preload="none" браузер не начинает загрузку до play()/load() — явно запускаем загрузку
+      el.load();
       if (el.readyState >= 2) {
         playWhenReady();
       } else {
@@ -1054,7 +1053,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
         }}
       >
         {/* Скрытый аудио для воспроизведения треков комнаты — всегда в DOM, чтобы ref был при первом audio:play */}
-        <audio ref={roomAudioRef} preload="none" style={{ position: 'absolute', left: -9999, width: 0, height: 0 }} />
+        <audio ref={roomAudioRef} preload="none" crossOrigin="anonymous" style={{ position: 'absolute', left: -9999, width: 0, height: 0 }} />
         {/* Левая панель — кубики */}
         <aside
           style={{

@@ -1,0 +1,469 @@
+/* Лист персонажа — компактный макет в стиле гримуара, адаптив под мобильные */
+
+.cs-root {
+  --cs-bg: #f5f1eb;
+  --cs-paper: #faf8f4;
+  --cs-border: #8b7355;
+  --cs-border-light: #c4b59a;
+  --cs-text: #2c2416;
+  --cs-text-muted: #5c5244;
+  --cs-accent: #6b5344;
+  --cs-input-bg: #fff;
+  --cs-section-bg: rgba(139, 115, 85, 0.06);
+  --cs-font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --cs-gap-tiny: 4px;
+  --cs-gap-sm: 6px;
+  --cs-gap: 8px;
+  --cs-gap-md: 10px;
+  --cs-gap-lg: 12px;
+  --cs-radius: 3px;
+  --cs-input-h: 26px;
+  --cs-input-pad: 3px 6px;
+  --cs-font-label: 10px;
+  --cs-font-input: 12px;
+  --cs-font-section: 11px;
+  position: relative;
+  margin: 0;
+  min-height: auto;
+  padding: 10px;
+  width: 100%;
+  background: var(--cs-bg);
+  color: var(--cs-text);
+  font-family: var(--cs-font);
+  font-size: var(--cs-font-input);
+  box-sizing: border-box;
+}
+
+/* Фон «бумаги» с лёгкой текстурой — absolute, чтобы не перекрывать шапку при скролле */
+.cs-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"),
+    var(--cs-bg);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cs-root > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Шапка */
+.cs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cs-gap);
+  margin-bottom: var(--cs-gap-lg);
+  padding: var(--cs-gap) var(--cs-gap-md);
+  background: var(--cs-paper);
+  border: 1px solid var(--cs-border-light);
+  border-radius: var(--cs-radius);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  flex-shrink: 0;
+  min-height: 40px;
+}
+
+.cs-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cs-accent);
+  letter-spacing: 0.02em;
+}
+
+.cs-actions {
+  display: flex;
+  gap: var(--cs-gap);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.cs-btn {
+  padding: 5px 10px;
+  border: 1px solid var(--cs-border-light);
+  border-radius: var(--cs-radius);
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--cs-paper);
+  color: var(--cs-text);
+}
+
+.cs-btn-primary { background: #4a7c59; color: #fff; border-color: #3d6b4a; }
+.cs-btn-secondary { background: #5c6b7a; color: #fff; border-color: #4a5763; }
+.cs-btn-ghost { background: transparent; }
+
+/* Секции */
+.cs-section {
+  margin-bottom: var(--cs-gap-lg);
+  padding: var(--cs-gap) var(--cs-gap-md);
+  background: var(--cs-section-bg);
+  border: 1px solid var(--cs-border-light);
+  border-radius: var(--cs-radius);
+}
+
+.cs-section-title {
+  margin: 0 0 var(--cs-gap) 0;
+  font-size: var(--cs-font-section);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--cs-accent);
+  border-bottom: 1px solid var(--cs-border-light);
+  padding-bottom: 2px;
+}
+
+/* Портрет — компактный */
+.cs-portrait-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cs-gap);
+  margin-top: var(--cs-gap-tiny);
+}
+
+.cs-portrait-box {
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--cs-input-bg);
+}
+
+.cs-portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cs-portrait-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--cs-text-muted);
+}
+
+.cs-portrait-btns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-gap-tiny);
+}
+
+/* Поля и лейблы */
+.cs-label {
+  font-weight: 600;
+  font-size: var(--cs-font-label);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: var(--cs-gap-tiny);
+  color: var(--cs-text-muted);
+  display: block;
+}
+
+.cs-input,
+.cs-select,
+.cs-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--cs-border-light);
+  border-radius: var(--cs-radius);
+  padding: var(--cs-input-pad);
+  font-size: var(--cs-font-input);
+  font-family: inherit;
+  background: var(--cs-input-bg);
+  color: var(--cs-text);
+  min-height: var(--cs-input-h);
+}
+
+.cs-input:focus,
+.cs-select:focus,
+.cs-textarea:focus {
+  outline: none;
+  border-color: var(--cs-border);
+  box-shadow: 0 0 0 1px var(--cs-border-light);
+}
+
+.cs-input[readonly],
+.cs-input:disabled {
+  background: #eee;
+  cursor: default;
+}
+
+.cs-textarea {
+  resize: vertical;
+  min-height: 44px;
+}
+
+.cs-textarea-sm { min-height: 38px; }
+.cs-textarea-xs { min-height: 32px; }
+
+/* Сетки */
+.cs-grid-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: var(--cs-gap);
+  margin-bottom: var(--cs-gap);
+}
+
+.cs-grid-cols {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(200px, 1.2fr) minmax(160px, 1fr);
+  gap: var(--cs-gap-lg);
+  align-items: start;
+}
+
+.cs-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-gap);
+}
+
+.cs-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-gap-sm);
+  flex-wrap: wrap;
+}
+
+/* Характеристики — компактная сетка 2x3 */
+.cs-abilities {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--cs-gap-tiny);
+  margin-bottom: var(--cs-gap);
+}
+
+.cs-ability {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.cs-ability .cs-input {
+  width: 36px;
+  min-width: 36px;
+  text-align: center;
+  padding: 2px 4px;
+}
+
+.cs-ability-mod {
+  font-size: 11px;
+  color: var(--cs-text-muted);
+}
+
+/* Спасброски / навыки — плотный список */
+.cs-list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-gap-tiny);
+  margin-bottom: 1px;
+}
+
+.cs-list-row input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.cs-list-row .cs-num {
+  width: 32px;
+  min-width: 32px;
+  text-align: center;
+  padding: 2px 4px;
+  font-size: 11px;
+  border: 1px solid var(--cs-border-light);
+  border-radius: var(--cs-radius);
+  background: var(--cs-input-bg);
+  box-sizing: border-box;
+}
+
+/* Боевые показатели — одна строка */
+.cs-combat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--cs-gap);
+}
+
+.cs-combat-row .cs-input { max-width: 56px; }
+
+/* Хиты в одну линию */
+.cs-hp-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--cs-gap);
+}
+
+.cs-hp-row .cs-input { max-width: 64px; }
+
+/* Слоты заклинаний — компактно */
+.cs-spell-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cs-gap-sm);
+  align-items: center;
+}
+
+.cs-spell-slot {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.cs-spell-slot .cs-input { width: 32px; min-width: 32px; text-align: center; padding: 2px 4px; }
+
+/* Состояния — мелкая сетка */
+.cs-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cs-gap-sm);
+}
+
+.cs-conditions label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.cs-conditions input[type="checkbox"] { width: 11px; height: 11px; }
+
+/* Валюта */
+.cs-currency {
+  display: flex;
+  gap: var(--cs-gap-tiny);
+  flex-wrap: wrap;
+}
+
+.cs-currency .cs-input { width: 44px; min-width: 44px; }
+
+/* Таблица атак */
+.cs-attacks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.cs-attacks-table th,
+.cs-attacks-table td {
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--cs-border-light);
+  text-align: left;
+}
+
+.cs-attacks-table .cs-input {
+  border: none;
+  padding: 2px 4px;
+  min-height: 22px;
+  background: transparent;
+}
+
+/* Оружие / инвентарь — компактные карточки */
+.cs-item-card {
+  margin-bottom: var(--cs-gap);
+  padding: var(--cs-gap);
+  border: 1px solid var(--cs-border-light);
+  border-radius: var(--cs-radius);
+  background: var(--cs-paper);
+}
+
+.cs-item-row {
+  display: flex;
+  gap: var(--cs-gap-sm);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.cs-item-row .cs-input:first-of-type { flex: 1; min-width: 80px; }
+.cs-item-row .cs-input { max-width: 90px; }
+.cs-item-row .cs-select { width: auto; min-width: 64px; max-width: 88px; }
+
+/* Share panel */
+.cs-share-panel {
+  margin-bottom: var(--cs-gap-lg);
+  padding: var(--cs-gap-md);
+  border: 1px solid var(--cs-border-light);
+  border-radius: var(--cs-radius);
+  background: var(--cs-paper);
+}
+
+/* Inline number/display */
+.cs-inline-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: var(--cs-input-h);
+  padding: 0 6px;
+  border: 1px solid var(--cs-border-light);
+  border-radius: var(--cs-radius);
+  font-size: var(--cs-font-input);
+  background: var(--cs-input-bg);
+}
+
+/* Сворачиваемые блоки на мобильных */
+.cs-collapse summary {
+  cursor: pointer;
+  font-size: var(--cs-font-section);
+  font-weight: 700;
+  color: var(--cs-accent);
+  padding: var(--cs-gap-tiny) 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cs-collapse summary::-webkit-details-marker { display: none; }
+.cs-collapse summary::before { content: '▶'; font-size: 10px; transition: transform 0.2s; }
+.cs-collapse[open] summary::before { transform: rotate(90deg); }
+
+/* ========== Адаптив ========== */
+@media (max-width: 900px) {
+  .cs-grid-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .cs-root { padding: 8px; }
+  .cs-header { flex-direction: column; align-items: stretch; }
+  .cs-actions { justify-content: flex-start; }
+  .cs-grid-header {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cs-portrait-box {
+    width: 56px;
+    height: 56px;
+  }
+  .cs-combat-row {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .cs-combat-row .cs-input { max-width: none; }
+  .cs-hp-row { grid-template-columns: 1fr 1fr; }
+  .cs-hp-row .cs-input { max-width: none; }
+  .cs-abilities {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .cs-item-row .cs-input,
+  .cs-item-row .cs-select { max-width: none; }
+}
+
+@media (max-width: 480px) {
+  .cs-grid-header {
+    grid-template-columns: 1fr;
+  }
+  .cs-abilities {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

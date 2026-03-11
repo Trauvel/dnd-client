@@ -69,7 +69,10 @@ export interface CreateScenarioRequest {
 export function absolutizeUrl(relative?: string | null): string | null | undefined {
   if (!relative) return relative;
   // backend отдаёт путь вида /uploads/..., добавляем базовый URL API
-  return `${API_CONFIG.WEBSITE_API_URL}${relative}`;
+  const base =
+    API_CONFIG.WEBSITE_API_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '');
+  return base ? `${base.replace(/\/$/, '')}${relative.startsWith('/') ? '' : '/'}${relative}` : relative;
 }
 
 function normalizeScenario(raw: any): Scenario {

@@ -14,7 +14,7 @@ import {
   type WeaponDamageType,
   CONDITION_OPTIONS,
 } from '../../types/characterSheet';
-import '../../pages/PlayerPage.css';
+import './CharacterSheet.css';
 
 function normalizeWeapon(
   w: { name: string; damage: string; attackModifier?: string; proficient?: boolean; ability?: AbilityKey; damageType?: WeaponDamageType }
@@ -163,7 +163,7 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
     setAttackSelectValue('');
   };
   const select = (value: string, onChange: (v: string) => void, options: ReferenceEntry[], placeholder: string) => (
-    <select value={value} onChange={(e) => onChange(e.target.value)} style={sheetStyle}>
+    <select className="cs-select" value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
       {options.map((e) => (
         <option key={e.id} value={e.name}>{e.name}</option>
@@ -177,17 +177,17 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
   const level = xpToLevel(draft.experience);
   const profBonus = getProficiencyBonus(level);
 
-  const sheetStyle = { border: '1px solid #333', padding: '4px 8px', borderRadius: 2, fontSize: 13, width: '100%', boxSizing: 'border-box' as const };
-  const labelStyle = { fontWeight: 600, fontSize: 11, textTransform: 'uppercase' as const, marginBottom: 2 };
+  const sheetStyle = { width: '100%', boxSizing: 'border-box' as const };
+  const labelStyle = {};
 
   const input = (type: 'text' | 'number', value: string | number, onChange: (v: string | number) => void, opts?: { min?: number; placeholder?: string }) => (
     <input
       type={type}
+      className="cs-input"
       value={value}
       onChange={(e) => (type === 'number' ? onChange(parseInt(e.target.value, 10) || 0) : onChange(e.target.value))}
       min={opts?.min}
       placeholder={opts?.placeholder}
-      style={sheetStyle}
     />
   );
 
@@ -234,186 +234,163 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
   };
 
   return (
-    <div className="character-sheet-page" style={{ padding: 16, width: '100%', background: '#fff', color: '#000' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: 20 }}>Новый персонаж</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={onCancel} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Отмена</button>
-          <button type="submit" form="create-sheet-form" disabled={isSubmitting} style={{ padding: '8px 16px', background: isSubmitting ? '#6c757d' : '#28a745', color: '#fff', border: 'none', borderRadius: 6, cursor: isSubmitting ? 'not-allowed' : 'pointer', fontSize: 14 }}>{isSubmitting ? 'Создание...' : 'Создать'}</button>
+    <div className="cs-root">
+      <div className="cs-header">
+        <h2 className="cs-title">Новый персонаж</h2>
+        <div className="cs-actions">
+          <button type="button" onClick={onCancel} className="cs-btn cs-btn-ghost">Отмена</button>
+          <button type="submit" form="create-sheet-form" disabled={isSubmitting} className="cs-btn cs-btn-primary">{isSubmitting ? 'Создание...' : 'Создать'}</button>
         </div>
-        {error && <div style={{ color: '#dc3545', fontSize: 14, width: '100%' }}>{error}</div>}
+        {error && <div style={{ color: '#c53030', fontSize: 12, width: '100%' }}>{error}</div>}
       </div>
 
       <form id="create-sheet-form" onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 16 }}>
-          <h2 style={{ margin: '0 0 8px', fontSize: 14 }}>Портрет</h2>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <div style={{ width: 120, height: 120, border: '1px solid #333', borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: '#f5f5f5' }}>
+        <div className="cs-section">
+          <h2 className="cs-section-title">Портрет</h2>
+          <div className="cs-portrait-wrap">
+            <div className="cs-portrait-box">
               {draft.imageUrl ? (
-                <img src={draft.imageUrl} alt="Персонаж" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={draft.imageUrl} alt="Персонаж" className="cs-portrait-img" />
               ) : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#666' }}>Нет изображения</div>
+                <div className="cs-portrait-placeholder">Нет изображения</div>
               )}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ padding: '6px 12px', background: '#0d6efd', color: '#fff', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}>
+            <div className="cs-portrait-btns">
+              <label className="cs-btn cs-btn-primary" style={{ margin: 0 }}>
                 Загрузить
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = () => setDraft((p) => ({ ...p, imageUrl: reader.result as string })); reader.readAsDataURL(file); } }} />
               </label>
-              <button type="button" onClick={() => setDraft((p) => ({ ...p, imageUrl: '' }))} style={{ padding: '6px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}>Удалить</button>
+              <button type="button" className="cs-btn cs-btn-ghost" onClick={() => setDraft((p) => ({ ...p, imageUrl: '' }))}>Удалить</button>
             </div>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
-          <div><label style={labelStyle}>Имя персонажа</label><br />{input('text', draft.characterName, (v) => setDraft((p) => ({ ...p, characterName: String(v) })), { placeholder: 'Обязательно' })}</div>
-          <div><label style={labelStyle}>Класс и уровень</label><br /><span style={{ display: 'flex', gap: 4 }}>{select(draft.class, (v) => setDraft((p) => ({ ...p, class: v })), refOptions.classes, '—')}<span style={{ ...sheetStyle, width: 40, textAlign: 'center', lineHeight: '28px' }}>{level}</span></span></div>
-          <div><label style={labelStyle}>Имя игрока</label><br /><input type="text" placeholder="—" readOnly style={{ ...sheetStyle, background: '#f5f5f5' }} /></div>
-          <div><label style={labelStyle}>Опыт</label><br />{input('number', draft.experience, (v) => setDraft((p) => ({ ...p, experience: typeof v === 'number' ? v : 0 })), { min: 0 })}</div>
-          <div><label style={labelStyle}>Раса</label><br />{select(draft.race, (v) => setDraft((p) => ({ ...p, race: v })), refOptions.races, '—')}</div>
-          <div><label style={labelStyle}>Архетип класса</label><br />{select(draft.classArchetype, (v) => setDraft((p) => ({ ...p, classArchetype: v })), refOptions.subclasses, '—')}</div>
-          <div><label style={labelStyle}>Мировоззрение</label><br />{select(sheetData.alignment ?? '', (v) => updateSheet({ alignment: v }), refOptions.alignments, '—')}</div>
-          <div><label style={labelStyle}>Подраса</label><br />{select(draft.subrace, (v) => setDraft((p) => ({ ...p, subrace: v })), refOptions.subraces, '—')}</div>
-          <div><label style={labelStyle}>Вес</label><br />{input('text', draft.weight, (v) => setDraft((p) => ({ ...p, weight: String(v) })), { placeholder: '55 кг' })}</div>
-          <div><label style={labelStyle}>Рост</label><br />{input('text', draft.height, (v) => setDraft((p) => ({ ...p, height: String(v) })), { placeholder: '185 см' })}</div>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Предыстория</label>
-          {select(sheetData.background ?? '', (v) => updateSheet({ background: v }), refOptions.backgrounds, '—')}
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Предистория (рассказ)</label>
-          <textarea value={draft.backstory} onChange={(e) => setDraft((p) => ({ ...p, backstory: e.target.value }))} rows={3} style={{ ...sheetStyle, resize: 'vertical', width: '100%', marginTop: 4 }} placeholder="Рассказ о прошлом персонажа..." />
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Внешность</label>
-          <textarea value={draft.appearance} onChange={(e) => setDraft((p) => ({ ...p, appearance: e.target.value }))} rows={2} style={{ ...sheetStyle, resize: 'vertical', width: '100%', marginTop: 4 }} placeholder="Описание внешности..." />
+        <div className="cs-section">
+          <div className="cs-grid-header">
+            <div><label className="cs-label">Имя персонажа</label>{input('text', draft.characterName, (v) => setDraft((p) => ({ ...p, characterName: String(v) })), { placeholder: 'Обязательно' })}</div>
+            <div><label className="cs-label">Класс и уровень</label><span className="cs-row">{select(draft.class, (v) => setDraft((p) => ({ ...p, class: v })), refOptions.classes, '—')}<span className="cs-inline-num">{level}</span></span></div>
+            <div><label className="cs-label">Имя игрока</label><input type="text" className="cs-input" placeholder="—" readOnly style={{ background: '#eee' }} /></div>
+            <div><label className="cs-label">Опыт</label>{input('number', draft.experience, (v) => setDraft((p) => ({ ...p, experience: typeof v === 'number' ? v : 0 })), { min: 0 })}</div>
+            <div><label className="cs-label">Раса</label>{select(draft.race, (v) => setDraft((p) => ({ ...p, race: v })), refOptions.races, '—')}</div>
+            <div><label className="cs-label">Архетип класса</label>{select(draft.classArchetype, (v) => setDraft((p) => ({ ...p, classArchetype: v })), refOptions.subclasses, '—')}</div>
+            <div><label className="cs-label">Мировоззрение</label>{select(sheetData.alignment ?? '', (v) => updateSheet({ alignment: v }), refOptions.alignments, '—')}</div>
+            <div><label className="cs-label">Подраса</label>{select(draft.subrace, (v) => setDraft((p) => ({ ...p, subrace: v })), refOptions.subraces, '—')}</div>
+            <div><label className="cs-label">Вес</label>{input('text', draft.weight, (v) => setDraft((p) => ({ ...p, weight: String(v) })), { placeholder: '55 кг' })}</div>
+            <div><label className="cs-label">Рост</label>{input('text', draft.height, (v) => setDraft((p) => ({ ...p, height: String(v) })), { placeholder: '185 см' })}</div>
+          </div>
+          <div style={{ marginBottom: 6 }}><label className="cs-label">Предыстория</label>{select(sheetData.background ?? '', (v) => updateSheet({ background: v }), refOptions.backgrounds, '—')}</div>
+          <div style={{ marginBottom: 6 }}><label className="cs-label">Предистория (рассказ)</label><textarea className="cs-textarea cs-textarea-sm" value={draft.backstory} onChange={(e) => setDraft((p) => ({ ...p, backstory: e.target.value }))} rows={2} placeholder="Рассказ о прошлом персонажа..." /></div>
+          <div><label className="cs-label">Внешность</label><textarea className="cs-textarea cs-textarea-xs" value={draft.appearance} onChange={(e) => setDraft((p) => ({ ...p, appearance: e.target.value }))} rows={1} placeholder="Описание внешности..." /></div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(280px, 1.2fr) minmax(200px, 1fr)', gap: 16, alignItems: 'start' }}>
-          {/* Левая колонка */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={labelStyle}>Вдохновение</label>
+        <div className="cs-grid-cols">
+          <div className="cs-col">
+            <div className="cs-row">
+              <label className="cs-label">Вдохновение</label>
               <input type="checkbox" checked={!!sheetData.inspiration} onChange={(e) => updateSheet({ inspiration: e.target.checked })} />
-              <label style={labelStyle}>Бонус мастерства</label>
-              <span style={{ ...sheetStyle, width: 36, textAlign: 'center' }}>+{profBonus}</span>
+              <label className="cs-label">Бонус мастерства</label>
+              <span className="cs-inline-num">+{profBonus}</span>
             </div>
-            {(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const).map((key) => {
-              const names: Record<AbilityKey, string> = { strength: 'Сила', dexterity: 'Ловкость', constitution: 'Телосложение', intelligence: 'Интеллект', wisdom: 'Мудрость', charisma: 'Харизма' };
-              const v = draft[key];
-              return (
-                <div key={key} style={{ flex: '0 0 80px' }}>
-                  <label style={labelStyle}>{names[key]}</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className="cs-abilities">
+              {(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const).map((key) => {
+                const names: Record<AbilityKey, string> = { strength: 'Сила', dexterity: 'Ловкость', constitution: 'Тел.', intelligence: 'Инт.', wisdom: 'Мудрость', charisma: 'Хар.' };
+                const v = draft[key];
+                return (
+                  <div key={key} className="cs-ability">
+                    <label className="cs-label">{names[key]}</label>
                     {input('number', v, (val) => setDraft((p) => ({ ...p, [key]: typeof val === 'number' ? val : 10 })))}
-                    <span style={{ fontSize: 12 }}>{getModifier(v)}</span>
+                    <span className="cs-ability-mod">{getModifier(v)}</span>
                   </div>
-                </div>
-              );
-            })}
-            <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Спасброски</h3>
+                );
+              })}
+            </div>
+            <h3 className="cs-section-title">Спасброски</h3>
               {['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].map((abil, i) => {
                 const names = ['Сила', 'Ловкость', 'Тел.', 'Инт.', 'Мудрость', 'Хар.'];
                 const prof = (sheetData.savingThrowProficiencies ?? []).includes(abil);
                 const score = draft[abil as AbilityKey];
                 const mod = Math.floor((score - 10) / 2) + (prof ? profBonus : 0);
                 return (
-                  <div key={abil} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                  <div key={abil} className="cs-list-row">
                     <input type="checkbox" checked={prof} onChange={(e) => updateSheet({ savingThrowProficiencies: e.target.checked ? [...(sheetData.savingThrowProficiencies ?? []), abil] : (sheetData.savingThrowProficiencies ?? []).filter((x) => x !== abil) })} />
-                    <span style={{ width: 70, fontSize: 12 }}>{names[i]}</span>
-                    <span style={{ ...sheetStyle, width: 40, textAlign: 'center' }}>{mod >= 0 ? '+' : ''}{mod}</span>
+                    <span style={{ width: 56, fontSize: 11 }}>{names[i]}</span>
+                    <span className="cs-num" style={{ display: 'inline-block' }}>{mod >= 0 ? '+' : ''}{mod}</span>
                   </div>
                 );
               })}
-            </div>
-            <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Навыки</h3>
+            <h3 className="cs-section-title">Навыки</h3>
               {DND_SKILLS.map((sk) => {
                 const prof = (sheetData.skillProficiencies ?? []).includes(sk.key);
                 const score = draft[sk.ability];
                 const mod = Math.floor((score - 10) / 2) + (prof ? profBonus : 0);
                 return (
-                  <div key={sk.key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                  <div key={sk.key} className="cs-list-row">
                     <input type="checkbox" checked={prof} onChange={(e) => updateSheet({ skillProficiencies: e.target.checked ? [...(sheetData.skillProficiencies ?? []), sk.key] : (sheetData.skillProficiencies ?? []).filter((x) => x !== sk.key) })} />
                     <span style={{ flex: 1, fontSize: 11 }}>{sk.name}</span>
-                    <span style={{ ...sheetStyle, width: 36, textAlign: 'center' }}>{mod >= 0 ? '+' : ''}{mod}</span>
+                    <span className="cs-num" style={{ display: 'inline-block' }}>{mod >= 0 ? '+' : ''}{mod}</span>
                   </div>
                 );
               })}
-            </div>
-            <div><label style={labelStyle}>Пассивная мудрость (Внимательность)</label>{input('number', sheetData.passivePerception ?? 10, (v) => updateSheet({ passivePerception: typeof v === 'number' ? v : 10 }))}</div>
-            <div><label style={labelStyle}>Владение</label><textarea value={sheetData.proficiencies ?? sheetData.proficienciesAndLanguages ?? ''} onChange={(e) => updateSheet({ proficiencies: e.target.value })} rows={3} style={{ ...sheetStyle, resize: 'vertical' }} placeholder="Инструменты, оружие и т.д." /></div>
-            <div><label style={labelStyle}>Языки</label><textarea value={sheetData.languages ?? ''} onChange={(e) => updateSheet({ languages: e.target.value })} rows={2} style={{ ...sheetStyle, resize: 'vertical' }} placeholder="Языки персонажа" /></div>
+            <div><label className="cs-label">Пассивная мудрость (Внимательность)</label>{input('number', sheetData.passivePerception ?? 10, (v) => updateSheet({ passivePerception: typeof v === 'number' ? v : 10 }))}</div>
+            <div><label className="cs-label">Владение</label><textarea className="cs-textarea cs-textarea-xs" value={sheetData.proficiencies ?? sheetData.proficienciesAndLanguages ?? ''} onChange={(e) => updateSheet({ proficiencies: e.target.value })} rows={2} placeholder="Инструменты, оружие и т.д." /></div>
+            <div><label className="cs-label">Языки</label><textarea className="cs-textarea cs-textarea-xs" value={sheetData.languages ?? ''} onChange={(e) => updateSheet({ languages: e.target.value })} rows={1} placeholder="Языки персонажа" /></div>
           </div>
 
-          {/* Центр */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              <div><label style={labelStyle}>КД</label>{input('number', draft.armorClass, (v) => setDraft((p) => ({ ...p, armorClass: typeof v === 'number' ? v : 10 })))}</div>
-              <div><label style={labelStyle}>Инициатива</label>{input('number', draft.initiative, (v) => setDraft((p) => ({ ...p, initiative: typeof v === 'number' ? v : 0 })))}</div>
-              <div><label style={labelStyle}>Скорость</label>{input('number', draft.speed, (v) => setDraft((p) => ({ ...p, speed: typeof v === 'number' ? v : 30 })))}</div>
+          <div className="cs-col">
+            <div className="cs-combat-row">
+              <div><label className="cs-label">КД</label>{input('number', draft.armorClass, (v) => setDraft((p) => ({ ...p, armorClass: typeof v === 'number' ? v : 10 })))}</div>
+              <div><label className="cs-label">Инициатива</label>{input('number', draft.initiative, (v) => setDraft((p) => ({ ...p, initiative: typeof v === 'number' ? v : 0 })))}</div>
+              <div><label className="cs-label">Скорость</label>{input('number', draft.speed, (v) => setDraft((p) => ({ ...p, speed: typeof v === 'number' ? v : 30 })))}</div>
             </div>
-            <div><label style={labelStyle}>Максимум хитов</label>{input('number', draft.maxHp, (v) => setDraft((p) => ({ ...p, maxHp: typeof v === 'number' ? v : 10 })))}</div>
-            <div><label style={labelStyle}>Текущие хиты</label>{input('number', draft.hp, (v) => setDraft((p) => ({ ...p, hp: typeof v === 'number' ? v : 10 })))}</div>
-            <div><label style={labelStyle}>Временные хиты</label>{input('number', sheetData.tempHp ?? 0, (v) => updateSheet({ tempHp: typeof v === 'number' ? v : 0 }))}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div><label style={labelStyle}>Кость хитов (итого)</label><input type="text" value={sheetData.hitDiceTotal ?? ''} onChange={(e) => updateSheet({ hitDiceTotal: e.target.value })} placeholder="1к8" style={sheetStyle} /></div>
-              <div><label style={labelStyle}>Потрачено</label>{input('number', sheetData.hitDiceUsed ?? 0, (v) => updateSheet({ hitDiceUsed: typeof v === 'number' ? v : 0 }))}</div>
+            <div className="cs-hp-row">
+              <div><label className="cs-label">Макс. хиты</label>{input('number', draft.maxHp, (v) => setDraft((p) => ({ ...p, maxHp: typeof v === 'number' ? v : 10 })))}</div>
+              <div><label className="cs-label">Хиты</label>{input('number', draft.hp, (v) => setDraft((p) => ({ ...p, hp: typeof v === 'number' ? v : 10 })))}</div>
+              <div><label className="cs-label">Врем. хиты</label>{input('number', sheetData.tempHp ?? 0, (v) => updateSheet({ tempHp: typeof v === 'number' ? v : 0 }))}</div>
             </div>
-            <div><label style={labelStyle}>Спасброски от смерти</label>
-              <div style={{ display: 'flex', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11 }}>Успехи:</span>
+            <div className="cs-row">
+              <div><label className="cs-label">Кость хитов</label><input type="text" className="cs-input" value={sheetData.hitDiceTotal ?? ''} onChange={(e) => updateSheet({ hitDiceTotal: e.target.value })} placeholder="1к8" style={{ maxWidth: 56 }} /></div>
+              <div><label className="cs-label">Потрачено</label>{input('number', sheetData.hitDiceUsed ?? 0, (v) => updateSheet({ hitDiceUsed: typeof v === 'number' ? v : 0 }))}</div>
+            </div>
+            <div><label className="cs-label">Спасброски от смерти</label>
+              <div className="cs-row" style={{ marginTop: 4 }}>
+                <span style={{ fontSize: 10 }}>Успехи:</span>
                 {[0, 1, 2].map((i) => (
                   <input key={`s${i}`} type="checkbox" checked={(sheetData.deathSaveSuccesses ?? 0) > i} onChange={() => updateSheet({ deathSaveSuccesses: (sheetData.deathSaveSuccesses ?? 0) === i + 1 ? i : i + 1 })} />
                 ))}
-                <span style={{ fontSize: 11, marginLeft: 8 }}>Провалы:</span>
+                <span style={{ fontSize: 10, marginLeft: 6 }}>Провалы:</span>
                 {[0, 1, 2].map((i) => (
                   <input key={`f${i}`} type="checkbox" checked={(sheetData.deathSaveFailures ?? 0) > i} onChange={() => updateSheet({ deathSaveFailures: (sheetData.deathSaveFailures ?? 0) === i + 1 ? i : i + 1 })} />
                 ))}
               </div>
             </div>
-            <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Атаки и заклинания</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead><tr><th style={{ textAlign: 'left', borderBottom: '1px solid #333' }}>Название</th><th style={{ textAlign: 'left', borderBottom: '1px solid #333' }}>Бонус атаки</th><th style={{ textAlign: 'left', borderBottom: '1px solid #333' }}>Урон/вид</th></tr></thead>
+            <h3 className="cs-section-title">Атаки и заклинания</h3>
+              <table className="cs-attacks-table">
+                <thead><tr><th>Название</th><th>Бонус</th><th>Урон/вид</th></tr></thead>
                 <tbody>
                   {(sheetData.attacks ?? []).map((at, i) => (
                     <tr key={i}>
-                      <td><input type="text" value={at.name} onChange={(e) => { const a = [...(sheetData.attacks ?? [])]; a[i] = { ...a[i], name: e.target.value }; updateSheet({ attacks: a }); }} style={{ ...sheetStyle, border: 'none', padding: 2 }} /></td>
-                      <td><input type="text" value={at.attackBonus} onChange={(e) => { const a = [...(sheetData.attacks ?? [])]; a[i] = { ...a[i], attackBonus: e.target.value }; updateSheet({ attacks: a }); }} style={{ ...sheetStyle, border: 'none', padding: 2, width: 60 }} /></td>
-                      <td style={{ whiteSpace: 'nowrap' }}><input type="text" value={at.damageType} onChange={(e) => { const a = [...(sheetData.attacks ?? [])]; a[i] = { ...a[i], damageType: e.target.value }; updateSheet({ attacks: a }); }} style={{ ...sheetStyle, border: 'none', padding: 2 }} /><button type="button" onClick={() => updateSheet({ attacks: (sheetData.attacks ?? []).filter((_, j) => j !== i) })} style={{ marginLeft: 4 }}>×</button></td>
+                      <td><input type="text" className="cs-input" value={at.name} onChange={(e) => { const a = [...(sheetData.attacks ?? [])]; a[i] = { ...a[i], name: e.target.value }; updateSheet({ attacks: a }); }} /></td>
+                      <td><input type="text" className="cs-input" value={at.attackBonus} onChange={(e) => { const a = [...(sheetData.attacks ?? [])]; a[i] = { ...a[i], attackBonus: e.target.value }; updateSheet({ attacks: a }); }} style={{ width: 48 }} /></td>
+                      <td style={{ whiteSpace: 'nowrap' }}><input type="text" className="cs-input" value={at.damageType} onChange={(e) => { const a = [...(sheetData.attacks ?? [])]; a[i] = { ...a[i], damageType: e.target.value }; updateSheet({ attacks: a }); }} /><button type="button" className="cs-btn cs-btn-ghost" onClick={() => updateSheet({ attacks: (sheetData.attacks ?? []).filter((_, j) => j !== i) })} style={{ padding: '2px 6px' }}>×</button></td>
                     </tr>
                   ))}
-                  <tr><td colSpan={3}><button type="button" onClick={() => updateSheet({ attacks: [...(sheetData.attacks ?? []), { name: '', attackBonus: '', damageType: '' }] })} style={{ fontSize: 12 }}>+ Атака</button></td></tr>
+                  <tr><td colSpan={3}><button type="button" className="cs-btn cs-btn-ghost" onClick={() => updateSheet({ attacks: [...(sheetData.attacks ?? []), { name: '', attackBonus: '', damageType: '' }] })}>+ Атака</button></td></tr>
                   {refOptions.attacks.length > 0 && (
                     <tr><td colSpan={3} style={{ paddingTop: 4 }}>
-                      <span style={{ fontSize: 12, color: '#666', marginRight: 8 }}>или из справочника:</span>
-                      <select
-                        value={attackSelectValue}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setAttackSelectValue(v);
-                          if (v) {
-                            const entry = refOptions.attacks.find((x) => x.name === v);
-                            if (entry) addAttackFromRef(entry);
-                          }
-                        }}
-                        style={{ ...sheetStyle, width: 220, display: 'inline-block' }}
-                      >
+                      <span style={{ fontSize: 10, color: 'var(--cs-text-muted)', marginRight: 6 }}>из справочника:</span>
+                      <select className="cs-select" value={attackSelectValue} onChange={(e) => { const v = e.target.value; setAttackSelectValue(v); if (v) { const entry = refOptions.attacks.find((x) => x.name === v); if (entry) addAttackFromRef(entry); } }} style={{ width: 160, display: 'inline-block' }}>
                         <option value="">— атака или заклинание</option>
-                        {refOptions.attacks.map((e) => (
-                          <option key={e.id} value={e.name}>{e.name}</option>
-                        ))}
+                        {refOptions.attacks.map((e) => (<option key={e.id} value={e.name}>{e.name}</option>))}
                       </select>
                     </td></tr>
                   )}
                 </tbody>
               </table>
-            </div>
-            <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Состояния</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+            <div><h3 className="cs-section-title">Состояния</h3>
+              <div className="cs-conditions">
                 {CONDITION_OPTIONS.map((opt) => {
                   const checked = (sheetData.conditions ?? []).includes(opt.key);
                   return (
-                    <label key={opt.key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                    <label key={opt.key}>
                       <input type="checkbox" checked={checked} onChange={(e) => { const next = e.target.checked ? [...(sheetData.conditions ?? []), opt.key] : (sheetData.conditions ?? []).filter((c) => c !== opt.key); updateSheet({ conditions: next }); }} />
                       {opt.label}
                     </label>
@@ -421,127 +398,73 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
                 })}
               </div>
             </div>
-            <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Слоты заклинаний</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+            <h3 className="cs-section-title">Слоты заклинаний</h3>
+              <div className="cs-spell-slots">
                 {([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((lv) => {
                   const slot = (sheetData.spellSlots ?? []).find((s) => s.level === lv) ?? { level: lv, total: 0, used: 0 };
                   const roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'][lv - 1];
                   return (
-                    <div key={lv} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 12, minWidth: 20 }}>{roman}</span>
-                      <input type="number" min={0} value={slot.total} onChange={(e) => { const v = parseInt(e.target.value, 10) || 0; const slots = [...(sheetData.spellSlots ?? [])]; const i = slots.findIndex((s) => s.level === lv); if (i >= 0) slots[i] = { ...slots[i], total: v }; else slots.push({ level: lv, total: v, used: 0 }); slots.sort((a, b) => a.level - b.level); updateSheet({ spellSlots: slots }); }} style={{ ...sheetStyle, width: 40 }} title="Всего" />
-                      <span style={{ fontSize: 12 }}>/</span>
-                      <input type="number" min={0} value={slot.used} onChange={(e) => { const v = Math.max(0, parseInt(e.target.value, 10) || 0); const slots = [...(sheetData.spellSlots ?? [])]; const i = slots.findIndex((s) => s.level === lv); const entry = i >= 0 ? slots[i] : { level: lv, total: 0, used: 0 }; const nextSlots = i >= 0 ? slots : [...slots, entry]; const j = nextSlots.findIndex((s) => s.level === lv); nextSlots[j] = { ...nextSlots[j], used: Math.min(v, nextSlots[j].total) }; nextSlots.sort((a, b) => a.level - b.level); updateSheet({ spellSlots: nextSlots }); }} style={{ ...sheetStyle, width: 40 }} title="Потрачено" />
+                    <div key={lv} className="cs-spell-slot">
+                      <span style={{ fontSize: 10, minWidth: 18 }}>{roman}</span>
+                      <input type="number" min={0} className="cs-input" value={slot.total} onChange={(e) => { const v = parseInt(e.target.value, 10) || 0; const slots = [...(sheetData.spellSlots ?? [])]; const i = slots.findIndex((s) => s.level === lv); if (i >= 0) slots[i] = { ...slots[i], total: v }; else slots.push({ level: lv, total: v, used: 0 }); slots.sort((a, b) => a.level - b.level); updateSheet({ spellSlots: slots }); }} title="Всего" />
+                      <span style={{ fontSize: 10 }}>{'/'}</span>
+                      <input type="number" min={0} className="cs-input" value={slot.used} onChange={(e) => { const v = Math.max(0, parseInt(e.target.value, 10) || 0); const slots = [...(sheetData.spellSlots ?? [])]; const i = slots.findIndex((s) => s.level === lv); const entry = i >= 0 ? slots[i] : { level: lv, total: 0, used: 0 }; const nextSlots = i >= 0 ? slots : [...slots, entry]; const j = nextSlots.findIndex((s) => s.level === lv); nextSlots[j] = { ...nextSlots[j], used: Math.min(v, nextSlots[j].total) }; nextSlots.sort((a, b) => a.level - b.level); updateSheet({ spellSlots: nextSlots }); }} title="Потрачено" />
                     </div>
                   );
                 })}
               </div>
-            </div>
-            <div><label style={labelStyle}>Валюта (ММ, СМ, ЗМ, ПМ, МД)</label>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            <div><label className="cs-label">Валюта (ММ, СМ, ЗМ, ПМ, МД)</label>
+              <div className="cs-currency">
                 {(['copper', 'silver', 'electrum', 'gold', 'platinum'] as const).map((c) => (
-                  <input key={c} type="number" min={0} value={sheetData.currency?.[c] ?? 0} onChange={(e) => updateSheet({ currency: { ...(sheetData.currency ?? {}), [c]: parseInt(e.target.value, 10) || 0 } })} style={{ ...sheetStyle, width: 52 }} />
+                  <input key={c} type="number" min={0} className="cs-input" value={sheetData.currency?.[c] ?? 0} onChange={(e) => updateSheet({ currency: { ...(sheetData.currency ?? {}), [c]: parseInt(e.target.value, 10) || 0 } })} />
                 ))}
               </div>
             </div>
-            <div><label style={labelStyle}>Снаряжение</label><textarea value={sheetData.equipment ?? ''} onChange={(e) => updateSheet({ equipment: e.target.value })} rows={6} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
-            <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Оружие</h3>
+            <div><label className="cs-label">Снаряжение</label><textarea className="cs-textarea cs-textarea-sm" value={sheetData.equipment ?? ''} onChange={(e) => updateSheet({ equipment: e.target.value })} rows={3} /></div>
+            <div>
+            <h3 className="cs-section-title">Оружие</h3>
               {(sheetData.weapons ?? []).map((w, index) => (
-                <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #dee2e6', borderRadius: 4 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input type="text" value={w.name} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), name: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Оружие" style={{ ...sheetStyle, flex: 1, minWidth: 100 }} />
-                    <input type="text" value={w.damage} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), damage: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Кубики урона (1к8, 2к6)" style={{ ...sheetStyle, width: 140 }} />
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={w.proficient ?? false} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), proficient: e.target.checked }; updateSheet({ weapons: next }); }} />
-                      Владение
-                    </label>
-                    <select value={w.ability ?? 'strength'} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), ability: e.target.value as AbilityKey }; updateSheet({ weapons: next }); }} style={{ ...sheetStyle, width: 72 }}>
-                      {ABILITY_KEYS.map((key) => (
-                        <option key={key} value={key}>{ABILITY_LABELS[key]}</option>
-                      ))}
-                    </select>
-                    <select value={w.damageType ?? ''} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), damageType: (e.target.value || undefined) as WeaponDamageType | undefined }; updateSheet({ weapons: next }); }} style={{ ...sheetStyle, width: 100 }} title="Тип урона">
-                      <option value="">— тип</option>
-                      {WEAPON_DAMAGE_TYPES.map((key) => (
-                        <option key={key} value={key}>{WEAPON_DAMAGE_TYPE_LABELS[key]}</option>
-                      ))}
-                    </select>
-                    <input type="text" value={w.attackModifier ?? ''} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), attackModifier: e.target.value || undefined }; updateSheet({ weapons: next }); }} placeholder="Бонус атаки (опц.)" style={{ ...sheetStyle, width: 110 }} title="Оставьте пустым — считается по характеристике и владению" />
-                    <button type="button" onClick={() => updateSheet({ weapons: (sheetData.weapons ?? []).filter((_, i) => i !== index) })}>×</button>
+                <div key={index} className="cs-item-card">
+                  <div className="cs-item-row">
+                    <input type="text" className="cs-input" value={w.name} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), name: e.target.value }; updateSheet({ weapons: next }); }} placeholder="Оружие" />
+                    <input type="text" className="cs-input" value={w.damage} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), damage: e.target.value }; updateSheet({ weapons: next }); }} placeholder="1к8" />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, cursor: 'pointer' }}><input type="checkbox" checked={w.proficient ?? false} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), proficient: e.target.checked }; updateSheet({ weapons: next }); }} />Влад.</label>
+                    <select className="cs-select" value={w.ability ?? 'strength'} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), ability: e.target.value as AbilityKey }; updateSheet({ weapons: next }); }} style={{ width: 56 }}>{ABILITY_KEYS.map((key) => (<option key={key} value={key}>{ABILITY_LABELS[key]}</option>))}</select>
+                    <select className="cs-select" value={w.damageType ?? ''} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), damageType: (e.target.value || undefined) as WeaponDamageType | undefined }; updateSheet({ weapons: next }); }} style={{ width: 72 }}><option value="">— тип</option>{WEAPON_DAMAGE_TYPES.map((key) => (<option key={key} value={key}>{WEAPON_DAMAGE_TYPE_LABELS[key]}</option>))}</select>
+                    <input type="text" className="cs-input" value={w.attackModifier ?? ''} onChange={(e) => { const next = [...(sheetData.weapons ?? [])]; next[index] = { ...normalizeWeapon(next[index]), attackModifier: e.target.value || undefined }; updateSheet({ weapons: next }); }} placeholder="Бонус" style={{ width: 52 }} />
+                    <button type="button" className="cs-btn cs-btn-ghost" onClick={() => updateSheet({ weapons: (sheetData.weapons ?? []).filter((_, i) => i !== index) })} style={{ padding: '2px 6px' }}>×</button>
                   </div>
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
-              <button type="button" onClick={() => updateSheet({ weapons: [...(sheetData.weapons ?? []), normalizeWeapon({ name: '', damage: '' })] })}>+ Оружие</button>
-              {refOptions.weapons.length > 0 && (
-                <>
-                  <span style={{ fontSize: 12, color: '#666' }}>или из справочника:</span>
-                  <select
-                    value={weaponSelectValue}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setWeaponSelectValue(v);
-                      if (v) {
-                        const entry = refOptions.weapons.find((x) => x.name === v);
-                        if (entry) addWeaponFromRef(entry);
-                      }
-                    }}
-                    style={{ ...sheetStyle, width: 220 }}
-                  >
-                    <option value="">— выбрать оружие</option>
-                    {refOptions.weapons.map((e) => (
-                      <option key={e.id} value={e.name}>{e.name}</option>
-                    ))}
-                  </select>
-                </>
-              )}
+              <div className="cs-row" style={{ marginTop: 4 }}>
+              <button type="button" className="cs-btn cs-btn-ghost" onClick={() => updateSheet({ weapons: [...(sheetData.weapons ?? []), normalizeWeapon({ name: '', damage: '' })] })}>+ Оружие</button>
+              {refOptions.weapons.length > 0 && (<><span style={{ fontSize: 10, color: 'var(--cs-text-muted)' }}>из справ.:</span><select className="cs-select" value={weaponSelectValue} onChange={(e) => { const v = e.target.value; setWeaponSelectValue(v); if (v) { const entry = refOptions.weapons.find((x) => x.name === v); if (entry) addWeaponFromRef(entry); } }} style={{ width: 140 }}><option value="">— выбрать оружие</option>{refOptions.weapons.map((e) => (<option key={e.id} value={e.name}>{e.name}</option>))}</select></>)}
             </div>
             </div>
-            <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Инвентарь</h3>
+            <div>
+            <h3 className="cs-section-title">Инвентарь</h3>
               {draft.inventory.map((item, index) => (
-                <div key={index} style={{ marginBottom: 8, padding: 8, border: '1px solid #dee2e6', borderRadius: 4 }}>
-                  <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-                    <input type="text" value={item.name ?? ''} onChange={(e) => { const next = [...draft.inventory]; next[index] = { ...next[index], name: e.target.value }; setDraft((p) => ({ ...p, inventory: next })); }} placeholder="Название" style={{ ...sheetStyle, flex: 1 }} />
-                    <button type="button" onClick={() => setDraft((p) => ({ ...p, inventory: p.inventory.filter((_, i) => i !== index) }))}>×</button>
+                <div key={index} className="cs-item-card">
+                  <div className="cs-item-row">
+                    <input type="text" className="cs-input" value={item.name ?? ''} onChange={(e) => { const next = [...draft.inventory]; next[index] = { ...next[index], name: e.target.value }; setDraft((p) => ({ ...p, inventory: next })); }} placeholder="Название" />
+                    <button type="button" className="cs-btn cs-btn-ghost" onClick={() => setDraft((p) => ({ ...p, inventory: p.inventory.filter((_, i) => i !== index) }))} style={{ padding: '2px 6px' }}>×</button>
                   </div>
-                  <textarea value={item.description ?? ''} onChange={(e) => { const next = [...draft.inventory]; next[index] = { ...next[index], description: e.target.value }; setDraft((p) => ({ ...p, inventory: next })); }} placeholder="Описание" rows={2} style={{ ...sheetStyle, width: '100%', resize: 'vertical', marginTop: 4 }} />
+                  <textarea className="cs-textarea cs-textarea-xs" value={item.description ?? ''} onChange={(e) => { const next = [...draft.inventory]; next[index] = { ...next[index], description: e.target.value }; setDraft((p) => ({ ...p, inventory: next })); }} placeholder="Описание" rows={1} style={{ marginTop: 4 }} />
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
-              <button type="button" onClick={() => setDraft((p) => ({ ...p, inventory: [...p.inventory, { name: '', description: '' }] }))}>+ Предмет</button>
-              {refOptions.items.length > 0 && (
-                <>
-                  <span style={{ fontSize: 12, color: '#666' }}>или из справочника:</span>
-                  <select
-                    value={itemSelectValue}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setItemSelectValue(v);
-                      if (v) {
-                        const entry = refOptions.items.find((x) => x.name === v);
-                        if (entry) addItemFromRef(entry);
-                      }
-                    }}
-                    style={{ ...sheetStyle, width: 220 }}
-                  >
-                    <option value="">— выбрать предмет</option>
-                    {refOptions.items.map((e) => (
-                      <option key={e.id} value={e.name}>{e.name}</option>
-                    ))}
-                  </select>
-                </>
-              )}
+              <div className="cs-row" style={{ marginTop: 4 }}>
+              <button type="button" className="cs-btn cs-btn-ghost" onClick={() => setDraft((p) => ({ ...p, inventory: [...p.inventory, { name: '', description: '' }] }))}>+ Предмет</button>
+              {refOptions.items.length > 0 && (<><span style={{ fontSize: 10, color: 'var(--cs-text-muted)' }}>из справ.:</span><select className="cs-select" value={itemSelectValue} onChange={(e) => { const v = e.target.value; setItemSelectValue(v); if (v) { const entry = refOptions.items.find((x) => x.name === v); if (entry) addItemFromRef(entry); } }} style={{ width: 140 }}><option value="">— выбрать предмет</option>{refOptions.items.map((e) => (<option key={e.id} value={e.name}>{e.name}</option>))}</select></>)}
             </div>
             </div>
           </div>
 
-          {/* Правая колонка */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div><label style={labelStyle}>Черты характера</label><textarea value={sheetData.traits ?? ''} onChange={(e) => updateSheet({ traits: e.target.value })} rows={3} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
-            <div><label style={labelStyle}>Идеалы</label><textarea value={sheetData.ideals ?? ''} onChange={(e) => updateSheet({ ideals: e.target.value })} rows={3} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
-            <div><label style={labelStyle}>Привязанности</label><textarea value={sheetData.bonds ?? ''} onChange={(e) => updateSheet({ bonds: e.target.value })} rows={3} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
-            <div><label style={labelStyle}>Слабости</label><textarea value={sheetData.flaws ?? ''} onChange={(e) => updateSheet({ flaws: e.target.value })} rows={3} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
-            <div><label style={labelStyle}>Умения и особенности</label><textarea value={sheetData.featuresTraits ?? ''} onChange={(e) => updateSheet({ featuresTraits: e.target.value })} rows={8} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
+          <div className="cs-col">
+            <div><label className="cs-label">Черты характера</label><textarea className="cs-textarea cs-textarea-xs" value={sheetData.traits ?? ''} onChange={(e) => updateSheet({ traits: e.target.value })} rows={2} /></div>
+            <div><label className="cs-label">Идеалы</label><textarea className="cs-textarea cs-textarea-xs" value={sheetData.ideals ?? ''} onChange={(e) => updateSheet({ ideals: e.target.value })} rows={2} /></div>
+            <div><label className="cs-label">Привязанности</label><textarea className="cs-textarea cs-textarea-xs" value={sheetData.bonds ?? ''} onChange={(e) => updateSheet({ bonds: e.target.value })} rows={2} /></div>
+            <div><label className="cs-label">Слабости</label><textarea className="cs-textarea cs-textarea-xs" value={sheetData.flaws ?? ''} onChange={(e) => updateSheet({ flaws: e.target.value })} rows={2} /></div>
+            <div><label className="cs-label">Умения и особенности</label><textarea className="cs-textarea cs-textarea-sm" value={sheetData.featuresTraits ?? ''} onChange={(e) => updateSheet({ featuresTraits: e.target.value })} rows={4} /></div>
           </div>
         </div>
       </form>
