@@ -263,7 +263,7 @@ const ReferenceBooksPage: React.FC = () => {
     const key = (editFieldForm.key ?? name).trim().toLowerCase().replace(/\s+/g, '_') || 'field';
     if (!name) return;
     try {
-      const field = await addReferenceField(selectedBook.id, {
+      await addReferenceField(selectedBook.id, {
         key,
         name,
         fieldType: editFieldForm.fieldType ?? 'string',
@@ -731,7 +731,7 @@ const ReferenceBooksPage: React.FC = () => {
                               const raw = entry.data[f.key];
                               let display: string;
                               if (f.fieldType === 'reference' && f.targetBookId && typeof raw === 'string') {
-                                display = (refEntriesByBookId[f.targetBookId] ?? []).find((e) => e.id === raw)?.name ?? raw;
+                                display = (refEntriesByBookId[f.targetBookId ?? ''] ?? []).find((e) => e.id === raw)?.name ?? raw;
                               } else if (f.fieldType === 'reference-multiple' && f.targetBookId && Array.isArray(raw)) {
                                 const names = (raw as string[]).map((id) => (refEntriesByBookId[f.targetBookId!] ?? []).find((e) => e.id === id)?.name ?? id);
                                 display = names.length ? names.join(', ') : '—';
@@ -943,21 +943,21 @@ const ReferenceBooksPage: React.FC = () => {
                       <input
                         type="text"
                         placeholder="Поиск…"
-                        value={refSearchByBookId[f.targetBookId] ?? ''}
+                        value={refSearchByBookId[f.targetBookId ?? ''] ?? ''}
                         onChange={(e) => setRefSearchByBookId((p) => ({ ...p, [f.targetBookId!]: e.target.value }))}
-                        onKeyDown={(e) => e.key === 'Enter' && loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId] ?? '', 0, false)}
+                        onKeyDown={(e) => e.key === 'Enter' && loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId ?? ''] ?? '', 0, false)}
                         style={{ flex: 1, padding: 6, borderRadius: 4, border: '1px solid #dee2e6' }}
                       />
                       <button
                         type="button"
-                        onClick={() => loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId] ?? '', 0, false)}
+                        onClick={() => loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId ?? ''] ?? '', 0, false)}
                         disabled={loadingRefBookId === f.targetBookId}
                         style={{ padding: '6px 12px', borderRadius: 4, border: '1px solid #0d6efd', background: '#0d6efd', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
                       >
                         Найти
                       </button>
                     </div>
-                    {loadingRefBookId === f.targetBookId && (refEntriesByBookId[f.targetBookId]?.length ?? 0) === 0 ? (
+                    {loadingRefBookId === f.targetBookId && (refEntriesByBookId[f.targetBookId ?? '']?.length ?? 0) === 0 ? (
                       <span style={{ fontSize: 12, color: '#666' }}>Загрузка…</span>
                     ) : (
                       <>
@@ -967,14 +967,14 @@ const ReferenceBooksPage: React.FC = () => {
                           style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #dee2e6' }}
                         >
                           <option value="">— Не выбрано —</option>
-                          {(refEntriesByBookId[f.targetBookId] ?? []).map((ent) => (
+                          {(refEntriesByBookId[f.targetBookId ?? ''] ?? []).map((ent) => (
                             <option key={ent.id} value={ent.id}>{ent.name}</option>
                           ))}
                         </select>
-                        {(refEntriesTotalByBookId[f.targetBookId] ?? 0) > (refEntriesByBookId[f.targetBookId]?.length ?? 0) && (
+                        {(refEntriesTotalByBookId[f.targetBookId ?? ''] ?? 0) > (refEntriesByBookId[f.targetBookId ?? '']?.length ?? 0) && (
                           <button
                             type="button"
-                            onClick={() => loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId] ?? '', refOffsetByBookId[f.targetBookId] ?? 0, true)}
+                            onClick={() => loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId ?? ''] ?? '', refOffsetByBookId[f.targetBookId ?? ''] ?? 0, true)}
                             disabled={loadingRefBookId === f.targetBookId}
                             style={{ fontSize: 12, padding: '4px 8px', cursor: 'pointer', alignSelf: 'flex-start' }}
                           >
@@ -990,14 +990,14 @@ const ReferenceBooksPage: React.FC = () => {
                       <input
                         type="text"
                         placeholder="Поиск…"
-                        value={refSearchByBookId[f.targetBookId] ?? ''}
+                        value={refSearchByBookId[f.targetBookId ?? ''] ?? ''}
                         onChange={(e) => setRefSearchByBookId((p) => ({ ...p, [f.targetBookId!]: e.target.value }))}
-                        onKeyDown={(e) => e.key === 'Enter' && loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId] ?? '', 0, false)}
+                        onKeyDown={(e) => e.key === 'Enter' && loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId ?? ''] ?? '', 0, false)}
                         style={{ flex: 1, padding: 6, borderRadius: 4, border: '1px solid #dee2e6' }}
                       />
                       <button
                         type="button"
-                        onClick={() => loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId] ?? '', 0, false)}
+                        onClick={() => loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId ?? ''] ?? '', 0, false)}
                         disabled={loadingRefBookId === f.targetBookId}
                         style={{ padding: '6px 12px', borderRadius: 4, border: '1px solid #0d6efd', background: '#0d6efd', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
                       >
@@ -1005,12 +1005,13 @@ const ReferenceBooksPage: React.FC = () => {
                       </button>
                     </div>
                     <div style={{ maxHeight: 200, overflow: 'auto', padding: '8px 0', border: '1px solid #dee2e6', borderRadius: 6, paddingLeft: 8 }}>
-                      {loadingRefBookId === f.targetBookId && (refEntriesByBookId[f.targetBookId]?.length ?? 0) === 0 ? (
+                      {loadingRefBookId === f.targetBookId && (refEntriesByBookId[f.targetBookId ?? '']?.length ?? 0) === 0 ? (
                         <span style={{ fontSize: 12, color: '#666' }}>Загрузка…</span>
                       ) : (
                         <>
-                          {((refEntriesByBookId[f.targetBookId] ?? []) as ReferenceEntry[]).map((ent) => {
-                            const selected = (Array.isArray(editEntryForm.data[f.key]) ? editEntryForm.data[f.key] as string[] : [].concat(editEntryForm.data[f.key] ?? []).filter(Boolean)) as string[];
+                          {((refEntriesByBookId[f.targetBookId ?? ''] ?? []) as ReferenceEntry[]).map((ent) => {
+                            const rawVal = editEntryForm.data[f.key];
+                            const selected = (Array.isArray(rawVal) ? (rawVal as string[]) : (rawVal != null ? [String(rawVal)] : [])).filter(Boolean) as string[];
                             const checked = selected.includes(ent.id);
                             return (
                               <label key={ent.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -1026,10 +1027,10 @@ const ReferenceBooksPage: React.FC = () => {
                               </label>
                             );
                           })}
-                          {(refEntriesTotalByBookId[f.targetBookId] ?? 0) > (refEntriesByBookId[f.targetBookId]?.length ?? 0) && (
+                          {(refEntriesTotalByBookId[f.targetBookId ?? ''] ?? 0) > (refEntriesByBookId[f.targetBookId ?? '']?.length ?? 0) && (
                             <button
                               type="button"
-                              onClick={() => loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId] ?? '', refOffsetByBookId[f.targetBookId] ?? 0, true)}
+                              onClick={() => loadRefPageWithEnsure(f.targetBookId!, refSearchByBookId[f.targetBookId ?? ''] ?? '', refOffsetByBookId[f.targetBookId ?? ''] ?? 0, true)}
                               disabled={loadingRefBookId === f.targetBookId}
                               style={{ marginTop: 6, fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}
                             >
@@ -1082,7 +1083,7 @@ const ReferenceBooksPage: React.FC = () => {
                 ) : f.fieldType === 'number' ? (
                   <input
                     type="number"
-                    value={editEntryForm.data[f.key] ?? ''}
+                    value={editEntryForm.data[f.key] === undefined || editEntryForm.data[f.key] === null ? '' : String(editEntryForm.data[f.key])}
                     onChange={(e) => setEntryData(f.key, e.target.value === '' ? null : Number(e.target.value))}
                     style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #dee2e6' }}
                   />
