@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createCharacter, updateCharacter, type Character, type InventoryItem } from '../../api/characters';
+import { getReferenceEntriesBySlug, type ReferenceEntry } from '../../api/referenceBooks';
 import { xpToLevel, getProficiencyBonus } from '../../utils/dndLevel';
 import {
   type CharacterSheetData,
@@ -91,8 +92,84 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
   const [draft, setDraft] = useState<CreateDraft>(defaultDraft);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refOptions, setRefOptions] = useState<{
+    races: ReferenceEntry[];
+    subraces: ReferenceEntry[];
+    classes: ReferenceEntry[];
+    subclasses: ReferenceEntry[];
+    backgrounds: ReferenceEntry[];
+    alignments: ReferenceEntry[];
+    weapons: ReferenceEntry[];
+    items: ReferenceEntry[];
+    attacks: ReferenceEntry[];
+  }>({ races: [], subraces: [], classes: [], subclasses: [], backgrounds: [], alignments: [], weapons: [], items: [], attacks: [] });
+  const [weaponSelectValue, setWeaponSelectValue] = useState('');
+  const [itemSelectValue, setItemSelectValue] = useState('');
+  const [attackSelectValue, setAttackSelectValue] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [races, subraces, classes, subclasses, backgrounds, alignments, weapons, itemsRes, equipmentRes, gearRes, attacksRes, spellsRes] = await Promise.all([
+          getReferenceEntriesBySlug('races'),
+          getReferenceEntriesBySlug('subraces'),
+          getReferenceEntriesBySlug('classes'),
+          getReferenceEntriesBySlug('subclasses'),
+          getReferenceEntriesBySlug('backgrounds'),
+          getReferenceEntriesBySlug('alignments'),
+          getReferenceEntriesBySlug('weapons'),
+          getReferenceEntriesBySlug('items'),
+          getReferenceEntriesBySlug('equipment'),
+          getReferenceEntriesBySlug('gear'),
+          getReferenceEntriesBySlug('attacks'),
+          getReferenceEntriesBySlug('spells'),
+        ]);
+        const items = [...itemsRes, ...equipmentRes, ...gearRes].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+        const attacks = [...attacksRes, ...spellsRes].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+        setRefOptions({ races, subraces, classes, subclasses, backgrounds, alignments, weapons: [...weapons].sort((a, b) => a.name.localeCompare(b.name, 'ru')), items, attacks });
+      } catch {
+        setRefOptions({ races: [], subraces: [], classes: [], subclasses: [], backgrounds: [], alignments: [], weapons: [], items: [], attacks: [] });
+      }
+    };
+    load();
+  }, []);
 
   const sheetData = draft.characterData;
+  const damageFromRefToType = (damageStr: string): WeaponDamageType | undefined => {
+    if (!damageStr || typeof damageStr !== 'string') return undefined;
+    const s = damageStr.toLowerCase();
+    if (s.includes('рубящ')) return 'slashing';
+    if (s.includes('колющ')) return 'piercing';
+    if (s.includes('дробящ')) return 'bludgeoning';
+    return undefined;
+  };
+  const addWeaponFromRef = (entry: ReferenceEntry) => {
+    const damage = (entry.data?.damage as string) ?? '';
+    const damageType = damageFromRefToType(damage);
+    updateSheet({
+      weapons: [...(sheetData.weapons ?? []), normalizeWeapon({ name: entry.name, damage, damageType })],
+    });
+    setWeaponSelectValue('');
+  };
+  const addItemFromRef = (entry: ReferenceEntry) => {
+    const desc = typeof entry.data?.description === 'string' ? entry.data.description : (entry.data?.description != null ? String(entry.data.description) : '');
+    setDraft((p) => ({ ...p, inventory: [...p.inventory, { name: entry.name, description: desc }] }));
+    setItemSelectValue('');
+  };
+  const addAttackFromRef = (entry: ReferenceEntry) => {
+    const attackBonus = (entry.data?.attackBonus ?? entry.data?.attack_bonus) as string | undefined;
+    const damageType = (entry.data?.damageType ?? entry.data?.damage_type ?? entry.data?.damage) as string | undefined;
+    updateSheet({ attacks: [...(sheetData.attacks ?? []), { name: entry.name, attackBonus: attackBonus ?? '', damageType: damageType ?? '' }] });
+    setAttackSelectValue('');
+  };
+  const select = (value: string, onChange: (v: string) => void, options: ReferenceEntry[], placeholder: string) => (
+    <select value={value} onChange={(e) => onChange(e.target.value)} style={sheetStyle}>
+      <option value="">{placeholder}</option>
+      {options.map((e) => (
+        <option key={e.id} value={e.name}>{e.name}</option>
+      ))}
+    </select>
+  );
   const updateSheet = (patch: Partial<CharacterSheetData>) =>
     setDraft((prev) => ({ ...prev, characterData: { ...prev.characterData, ...patch } }));
 
@@ -189,18 +266,22 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
           <div><label style={labelStyle}>Имя персонажа</label><br />{input('text', draft.characterName, (v) => setDraft((p) => ({ ...p, characterName: String(v) })), { placeholder: 'Обязательно' })}</div>
-          <div><label style={labelStyle}>Класс и уровень</label><br /><span style={{ display: 'flex', gap: 4 }}>{input('text', draft.class, (v) => setDraft((p) => ({ ...p, ['class']: String(v) })))}<span style={{ ...sheetStyle, width: 40, textAlign: 'center', lineHeight: '28px' }}>{level}</span></span></div>
+          <div><label style={labelStyle}>Класс и уровень</label><br /><span style={{ display: 'flex', gap: 4 }}>{select(draft.class, (v) => setDraft((p) => ({ ...p, class: v })), refOptions.classes, '—')}<span style={{ ...sheetStyle, width: 40, textAlign: 'center', lineHeight: '28px' }}>{level}</span></span></div>
           <div><label style={labelStyle}>Имя игрока</label><br /><input type="text" placeholder="—" readOnly style={{ ...sheetStyle, background: '#f5f5f5' }} /></div>
           <div><label style={labelStyle}>Опыт</label><br />{input('number', draft.experience, (v) => setDraft((p) => ({ ...p, experience: typeof v === 'number' ? v : 0 })), { min: 0 })}</div>
-          <div><label style={labelStyle}>Раса</label><br />{input('text', draft.race, (v) => setDraft((p) => ({ ...p, race: String(v) })))}</div>
-          <div><label style={labelStyle}>Архетип класса</label><br />{input('text', draft.classArchetype, (v) => setDraft((p) => ({ ...p, classArchetype: String(v) })), { placeholder: 'например Вор' })}</div>
-          <div><label style={labelStyle}>Мировоззрение</label><br /><input type="text" value={sheetData.alignment ?? ''} onChange={(e) => updateSheet({ alignment: e.target.value })} style={sheetStyle} /></div>
-          <div><label style={labelStyle}>Подраса</label><br />{input('text', draft.subrace, (v) => setDraft((p) => ({ ...p, subrace: String(v) })), { placeholder: 'например Дроу' })}</div>
+          <div><label style={labelStyle}>Раса</label><br />{select(draft.race, (v) => setDraft((p) => ({ ...p, race: v })), refOptions.races, '—')}</div>
+          <div><label style={labelStyle}>Архетип класса</label><br />{select(draft.classArchetype, (v) => setDraft((p) => ({ ...p, classArchetype: v })), refOptions.subclasses, '—')}</div>
+          <div><label style={labelStyle}>Мировоззрение</label><br />{select(sheetData.alignment ?? '', (v) => updateSheet({ alignment: v }), refOptions.alignments, '—')}</div>
+          <div><label style={labelStyle}>Подраса</label><br />{select(draft.subrace, (v) => setDraft((p) => ({ ...p, subrace: v })), refOptions.subraces, '—')}</div>
           <div><label style={labelStyle}>Вес</label><br />{input('text', draft.weight, (v) => setDraft((p) => ({ ...p, weight: String(v) })), { placeholder: '55 кг' })}</div>
           <div><label style={labelStyle}>Рост</label><br />{input('text', draft.height, (v) => setDraft((p) => ({ ...p, height: String(v) })), { placeholder: '185 см' })}</div>
         </div>
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Предистория</label>
+          <label style={labelStyle}>Предыстория</label>
+          {select(sheetData.background ?? '', (v) => updateSheet({ background: v }), refOptions.backgrounds, '—')}
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Предистория (рассказ)</label>
           <textarea value={draft.backstory} onChange={(e) => setDraft((p) => ({ ...p, backstory: e.target.value }))} rows={3} style={{ ...sheetStyle, resize: 'vertical', width: '100%', marginTop: 4 }} placeholder="Рассказ о прошлом персонажа..." />
         </div>
         <div style={{ marginBottom: 16 }}>
@@ -260,7 +341,8 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
               })}
             </div>
             <div><label style={labelStyle}>Пассивная мудрость (Внимательность)</label>{input('number', sheetData.passivePerception ?? 10, (v) => updateSheet({ passivePerception: typeof v === 'number' ? v : 10 }))}</div>
-            <div><label style={labelStyle}>Прочие владения и языки</label><textarea value={sheetData.proficienciesAndLanguages ?? ''} onChange={(e) => updateSheet({ proficienciesAndLanguages: e.target.value })} rows={4} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
+            <div><label style={labelStyle}>Владение</label><textarea value={sheetData.proficiencies ?? sheetData.proficienciesAndLanguages ?? ''} onChange={(e) => updateSheet({ proficiencies: e.target.value })} rows={3} style={{ ...sheetStyle, resize: 'vertical' }} placeholder="Инструменты, оружие и т.д." /></div>
+            <div><label style={labelStyle}>Языки</label><textarea value={sheetData.languages ?? ''} onChange={(e) => updateSheet({ languages: e.target.value })} rows={2} style={{ ...sheetStyle, resize: 'vertical' }} placeholder="Языки персонажа" /></div>
           </div>
 
           {/* Центр */}
@@ -301,6 +383,28 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
                     </tr>
                   ))}
                   <tr><td colSpan={3}><button type="button" onClick={() => updateSheet({ attacks: [...(sheetData.attacks ?? []), { name: '', attackBonus: '', damageType: '' }] })} style={{ fontSize: 12 }}>+ Атака</button></td></tr>
+                  {refOptions.attacks.length > 0 && (
+                    <tr><td colSpan={3} style={{ paddingTop: 4 }}>
+                      <span style={{ fontSize: 12, color: '#666', marginRight: 8 }}>или из справочника:</span>
+                      <select
+                        value={attackSelectValue}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setAttackSelectValue(v);
+                          if (v) {
+                            const entry = refOptions.attacks.find((x) => x.name === v);
+                            if (entry) addAttackFromRef(entry);
+                          }
+                        }}
+                        style={{ ...sheetStyle, width: 220, display: 'inline-block' }}
+                      >
+                        <option value="">— атака или заклинание</option>
+                        {refOptions.attacks.map((e) => (
+                          <option key={e.id} value={e.name}>{e.name}</option>
+                        ))}
+                      </select>
+                    </td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -367,7 +471,31 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
                   </div>
                 </div>
               ))}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
               <button type="button" onClick={() => updateSheet({ weapons: [...(sheetData.weapons ?? []), normalizeWeapon({ name: '', damage: '' })] })}>+ Оружие</button>
+              {refOptions.weapons.length > 0 && (
+                <>
+                  <span style={{ fontSize: 12, color: '#666' }}>или из справочника:</span>
+                  <select
+                    value={weaponSelectValue}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setWeaponSelectValue(v);
+                      if (v) {
+                        const entry = refOptions.weapons.find((x) => x.name === v);
+                        if (entry) addWeaponFromRef(entry);
+                      }
+                    }}
+                    style={{ ...sheetStyle, width: 220 }}
+                  >
+                    <option value="">— выбрать оружие</option>
+                    {refOptions.weapons.map((e) => (
+                      <option key={e.id} value={e.name}>{e.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
             </div>
             <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Инвентарь</h3>
               {draft.inventory.map((item, index) => (
@@ -379,7 +507,31 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
                   <textarea value={item.description ?? ''} onChange={(e) => { const next = [...draft.inventory]; next[index] = { ...next[index], description: e.target.value }; setDraft((p) => ({ ...p, inventory: next })); }} placeholder="Описание" rows={2} style={{ ...sheetStyle, width: '100%', resize: 'vertical', marginTop: 4 }} />
                 </div>
               ))}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
               <button type="button" onClick={() => setDraft((p) => ({ ...p, inventory: [...p.inventory, { name: '', description: '' }] }))}>+ Предмет</button>
+              {refOptions.items.length > 0 && (
+                <>
+                  <span style={{ fontSize: 12, color: '#666' }}>или из справочника:</span>
+                  <select
+                    value={itemSelectValue}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setItemSelectValue(v);
+                      if (v) {
+                        const entry = refOptions.items.find((x) => x.name === v);
+                        if (entry) addItemFromRef(entry);
+                      }
+                    }}
+                    style={{ ...sheetStyle, width: 220 }}
+                  >
+                    <option value="">— выбрать предмет</option>
+                    {refOptions.items.map((e) => (
+                      <option key={e.id} value={e.name}>{e.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
             </div>
           </div>
 

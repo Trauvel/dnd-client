@@ -77,6 +77,14 @@ export async function getReferenceBook(id: string): Promise<ReferenceBook | null
   return res.json();
 }
 
+/** Загрузить записи справочника по slug (для селектов в форме персонажа) */
+export async function getReferenceEntriesBySlug(slug: string): Promise<ReferenceEntry[]> {
+  const books = await getReferenceBooks();
+  const book = books.find((b) => b.slug === slug);
+  if (!book?.id) return [];
+  return getReferenceEntries(book.id);
+}
+
 export async function createReferenceBook(data: {
   name: string;
   slug?: string;

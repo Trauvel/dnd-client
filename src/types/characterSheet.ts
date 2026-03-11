@@ -7,9 +7,16 @@ export interface CharacterSheetData {
   hitDiceTotal?: string;
   hitDiceUsed?: number;
   alignment?: string;
+  /** Предыстория (название из справочника) */
+  background?: string;
   savingThrowProficiencies?: string[];
   skillProficiencies?: string[];
   passivePerception?: number;
+  /** Прочие владения (инструменты, оружие и т.д.) */
+  proficiencies?: string;
+  /** Языки */
+  languages?: string;
+  /** @deprecated Используйте proficiencies и languages */
   proficienciesAndLanguages?: string;
   attacks?: { name: string; attackBonus: string; damageType: string }[];
   currency?: { copper?: number; silver?: number; electrum?: number; gold?: number; platinum?: number };
@@ -93,9 +100,12 @@ export const DEFAULT_SHEET_DATA: CharacterSheetData = {
   hitDiceTotal: '',
   hitDiceUsed: 0,
   alignment: '',
+  background: '',
   savingThrowProficiencies: [],
   skillProficiencies: [],
   passivePerception: 10,
+  proficiencies: '',
+  languages: '',
   proficienciesAndLanguages: '',
   attacks: [],
   currency: { copper: 0, silver: 0, electrum: 0, gold: 0, platinum: 0 },

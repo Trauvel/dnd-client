@@ -533,7 +533,7 @@ const ReferenceBooksPage: React.FC = () => {
           </div>
 
           {globalSearchResults.length > 0 && (
-            <div style={{ marginBottom: 24, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ marginBottom: 24, border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden', width: '100%' }}>
               <div style={{ padding: '10px 12px', background: '#f8f9fa', fontWeight: 600 }}>
                 Найдено в {globalSearchResults.length} справочниках: {globalSearchResults.reduce((s, r) => s + r.entries.length, 0)} записей
               </div>
@@ -709,7 +709,7 @@ const ReferenceBooksPage: React.FC = () => {
               {entriesLoading ? (
                 <p>Загрузка записей…</p>
               ) : (
-                <div style={{ border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden', width: '100%' }}>
                   {entries.length === 0 ? (
                     <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>Записей пока нет</div>
                   ) : (
@@ -772,7 +772,7 @@ const ReferenceBooksPage: React.FC = () => {
                   + Добавить поле
                 </button>
               </div>
-              <div style={{ border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ border: '1px solid #dee2e6', borderRadius: 8, overflow: 'hidden', width: '100%' }}>
                 {selectedBook.fields.length === 0 ? (
                   <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>Полей нет. Добавьте поля для записей (строка, число, текст, ссылка на другой справочник).</div>
                 ) : (

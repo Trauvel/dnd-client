@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { updateCharacter, type Character } from '../../api/characters';
 import { searchUsers, type SearchUserItem } from '../../api/auth';
+import { getReferenceEntriesBySlug, type ReferenceEntry } from '../../api/referenceBooks';
 import { useAuth } from '../../store/authContext';
 import { xpToLevel, getProficiencyBonus } from '../../utils/dndLevel';
 import {
@@ -73,8 +74,76 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
   const [editorSearchResults, setEditorSearchResults] = useState<SearchUserItem[]>([]);
   const [editorSearching, setEditorSearching] = useState(false);
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
+  const [refOptions, setRefOptions] = useState<{
+    races: ReferenceEntry[];
+    subraces: ReferenceEntry[];
+    classes: ReferenceEntry[];
+    subclasses: ReferenceEntry[];
+    backgrounds: ReferenceEntry[];
+    alignments: ReferenceEntry[];
+    weapons: ReferenceEntry[];
+    items: ReferenceEntry[];
+    attacks: ReferenceEntry[];
+  }>({ races: [], subraces: [], classes: [], subclasses: [], backgrounds: [], alignments: [], weapons: [], items: [], attacks: [] });
+  const [weaponSelectValue, setWeaponSelectValue] = useState('');
+  const [itemSelectValue, setItemSelectValue] = useState('');
+  const [attackSelectValue, setAttackSelectValue] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [races, subraces, classes, subclasses, backgrounds, alignments, weapons, itemsRes, equipmentRes, gearRes, attacksRes, spellsRes] = await Promise.all([
+          getReferenceEntriesBySlug('races'),
+          getReferenceEntriesBySlug('subraces'),
+          getReferenceEntriesBySlug('classes'),
+          getReferenceEntriesBySlug('subclasses'),
+          getReferenceEntriesBySlug('backgrounds'),
+          getReferenceEntriesBySlug('alignments'),
+          getReferenceEntriesBySlug('weapons'),
+          getReferenceEntriesBySlug('items'),
+          getReferenceEntriesBySlug('equipment'),
+          getReferenceEntriesBySlug('gear'),
+          getReferenceEntriesBySlug('attacks'),
+          getReferenceEntriesBySlug('spells'),
+        ]);
+        const items = [...itemsRes, ...equipmentRes, ...gearRes].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+        const attacks = [...attacksRes, ...spellsRes].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+        setRefOptions({ races, subraces, classes, subclasses, backgrounds, alignments, weapons: [...weapons].sort((a, b) => a.name.localeCompare(b.name, 'ru')), items, attacks });
+      } catch {
+        setRefOptions({ races: [], subraces: [], classes: [], subclasses: [], backgrounds: [], alignments: [], weapons: [], items: [], attacks: [] });
+      }
+    };
+    load();
+  }, []);
 
   const sheetData: CharacterSheetData = getSheetData(character);
+  const damageFromRefToType = (damageStr: string): WeaponDamageType | undefined => {
+    if (!damageStr || typeof damageStr !== 'string') return undefined;
+    const s = damageStr.toLowerCase();
+    if (s.includes('рубящ')) return 'slashing';
+    if (s.includes('колющ')) return 'piercing';
+    if (s.includes('дробящ')) return 'bludgeoning';
+    return undefined;
+  };
+  const addWeaponFromRef = (entry: ReferenceEntry) => {
+    const damage = (entry.data?.damage as string) ?? '';
+    const damageType = damageFromRefToType(damage);
+    updateSheetData({
+      weapons: [...(sheetData.weapons ?? []), normalizeWeapon({ name: entry.name, damage, damageType })],
+    });
+    setWeaponSelectValue('');
+  };
+  const addItemFromRef = (entry: ReferenceEntry) => {
+    const desc = typeof entry.data?.description === 'string' ? entry.data.description : (entry.data?.description != null ? String(entry.data.description) : '');
+    updateStat('inventory', [...(character.inventory ?? []), { name: entry.name, description: desc }]);
+    setItemSelectValue('');
+  };
+  const addAttackFromRef = (entry: ReferenceEntry) => {
+    const attackBonus = (entry.data?.attackBonus ?? entry.data?.attack_bonus) as string | undefined;
+    const damageType = (entry.data?.damageType ?? entry.data?.damage_type ?? entry.data?.damage) as string | undefined;
+    updateSheetData({ attacks: [...(sheetData.attacks ?? []), { name: entry.name, attackBonus: attackBonus ?? '', damageType: damageType ?? '' }] });
+    setAttackSelectValue('');
+  };
   const editorIds = character.editorUserIds ?? [];
   const editorNames = character.editorUserNames ?? {};
 
@@ -189,6 +258,14 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
   );
   const sheetStyle = { border: '1px solid #333', padding: '4px 8px', borderRadius: 2, fontSize: 13, width: '100%', boxSizing: 'border-box' as const };
   const labelStyle = { fontWeight: 600, fontSize: 11, textTransform: 'uppercase' as const, marginBottom: 2 };
+  const refSelect = (value: string, onChange: (v: string) => void, options: ReferenceEntry[], disabled: boolean) => (
+    <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} style={{ ...sheetStyle, ...(!canEdit ? { background: '#f0f0f0', cursor: 'default' } : {}) }}>
+      <option value="">—</option>
+      {options.map((e) => (
+        <option key={e.id} value={e.name}>{e.name}</option>
+      ))}
+    </select>
+  );
 
   return (
     <div className="player-page character-sheet-page" style={{ margin: 0, minHeight: 'auto', padding: 16, width: '100%', background: '#fff', color: '#000' }}>
@@ -334,18 +411,22 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
       {/* Шапка как на листе */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
         <div><label style={labelStyle}>Имя персонажа</label><br />{input('text', character.characterName || '', (v) => updateStat('characterName', v))}</div>
-        <div><label style={labelStyle}>Класс и уровень</label><br /><span style={{ display: 'flex', gap: 4 }}>{input('text', character.class ?? '', (v) => updateStat('class', v))}<span style={{ ...sheetStyle, width: 40, textAlign: 'center', lineHeight: '28px' }}>{level}</span></span></div>
+        <div><label style={labelStyle}>Класс и уровень</label><br /><span style={{ display: 'flex', gap: 4 }}>{refSelect(character.class ?? '', (v) => updateStat('class', v), refOptions.classes, !canEdit)}<span style={{ ...sheetStyle, width: 40, textAlign: 'center', lineHeight: '28px' }}>{level}</span></span></div>
         <div><label style={labelStyle}>Имя игрока</label><br /><input type="text" placeholder="—" readOnly style={{ ...sheetStyle, background: '#f5f5f5' }} /></div>
         <div><label style={labelStyle}>Опыт</label><br />{input('number', character.experience ?? 0, (v) => updateStat('experience', v), { min: 0 })}</div>
-        <div><label style={labelStyle}>Раса</label><br />{input('text', character.race ?? '', (v) => updateStat('race', v))}</div>
-        <div><label style={labelStyle}>Архетип класса</label><br />{input('text', character.classArchetype ?? '', (v) => updateStat('classArchetype', v), { placeholder: 'например Вор' })}</div>
-        <div><label style={labelStyle}>Мировоззрение</label><br /><input type="text" value={sheetData.alignment ?? ''} onChange={(e) => updateSheetData({ alignment: e.target.value })} disabled={!canEdit} style={sheetStyle} /></div>
-        <div><label style={labelStyle}>Подраса</label><br />{input('text', character.subrace ?? '', (v) => updateStat('subrace', v), { placeholder: 'например Дроу' })}</div>
+        <div><label style={labelStyle}>Раса</label><br />{refSelect(character.race ?? '', (v) => updateStat('race', v), refOptions.races, !canEdit)}</div>
+        <div><label style={labelStyle}>Архетип класса</label><br />{refSelect(character.classArchetype ?? '', (v) => updateStat('classArchetype', v), refOptions.subclasses, !canEdit)}</div>
+        <div><label style={labelStyle}>Мировоззрение</label><br />{refSelect(sheetData.alignment ?? '', (v) => updateSheetData({ alignment: v }), refOptions.alignments, !canEdit)}</div>
+        <div><label style={labelStyle}>Подраса</label><br />{refSelect(character.subrace ?? '', (v) => updateStat('subrace', v), refOptions.subraces, !canEdit)}</div>
         <div><label style={labelStyle}>Вес (кг)</label><br /><input type="number" min={WEIGHT_KG.min} max={WEIGHT_KG.max} value={parseWeight(character.weight) ?? ''} onChange={(e) => { const v = e.target.value; const n = v === '' ? null : parseInt(v, 10); updateStat('weight', n != null && !Number.isNaN(n) ? String(n) : ''); }} disabled={!canEdit} readOnly={!canEdit} placeholder="55" style={!canEdit ? { background: '#f0f0f0', cursor: 'default' } : undefined} /></div>
         <div><label style={labelStyle}>Рост (см)</label><br /><input type="number" min={HEIGHT_CM.min} max={HEIGHT_CM.max} value={parseHeight(character.height) ?? ''} onChange={(e) => { const v = e.target.value; const n = v === '' ? null : parseInt(v, 10); updateStat('height', n != null && !Number.isNaN(n) ? String(n) : ''); }} disabled={!canEdit} readOnly={!canEdit} placeholder="185" style={!canEdit ? { background: '#f0f0f0', cursor: 'default' } : undefined} /></div>
       </div>
       <div style={{ marginBottom: 16 }}>
-        <label style={labelStyle}>Предистория</label>
+        <label style={labelStyle}>Предыстория</label>
+        {refSelect(sheetData.background ?? '', (v) => updateSheetData({ background: v }), refOptions.backgrounds, !canEdit)}
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <label style={labelStyle}>Предистория (рассказ)</label>
         <textarea value={character.backstory ?? ''} onChange={(e) => updateStat('backstory', e.target.value)} disabled={!canEdit} rows={3} style={{ ...sheetStyle, resize: 'vertical', width: '100%', marginTop: 4 }} placeholder="Рассказ о прошлом персонажа..." />
       </div>
       <div style={{ marginBottom: 16 }}>
@@ -410,7 +491,8 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
             })}
           </div>
           <div><label style={labelStyle}>Пассивная мудрость (Внимательность)</label>{input('number', sheetData.passivePerception ?? 10, (v) => updateSheetData({ passivePerception: typeof v === 'number' ? v : parseInt(String(v), 10) || 10 }))}</div>
-          <div><label style={labelStyle}>Прочие владения и языки</label><textarea value={sheetData.proficienciesAndLanguages ?? ''} onChange={(e) => updateSheetData({ proficienciesAndLanguages: e.target.value })} disabled={!canEdit} rows={4} style={{ ...sheetStyle, resize: 'vertical' }} /></div>
+          <div><label style={labelStyle}>Владение</label><textarea value={sheetData.proficiencies ?? sheetData.proficienciesAndLanguages ?? ''} onChange={(e) => updateSheetData({ proficiencies: e.target.value })} disabled={!canEdit} rows={3} style={{ ...sheetStyle, resize: 'vertical' }} placeholder="Инструменты, оружие и т.д." /></div>
+          <div><label style={labelStyle}>Языки</label><textarea value={sheetData.languages ?? ''} onChange={(e) => updateSheetData({ languages: e.target.value })} disabled={!canEdit} rows={2} style={{ ...sheetStyle, resize: 'vertical' }} placeholder="Языки персонажа" /></div>
         </div>
 
         {/* Центр: КД, инициатива, HP, кости хитов, смерть, атаки, снаряжение */}
@@ -451,9 +533,33 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
                   </tr>
                 ))}
                 {canEdit && (
-                  <tr><td colSpan={3}>
-                    <button type="button" onClick={() => updateSheetData({ attacks: [...(sheetData.attacks ?? []), { name: '', attackBonus: '', damageType: '' }] })} style={{ fontSize: 12 }}>+ Атака</button>
-                  </td></tr>
+                  <>
+                    <tr><td colSpan={3}>
+                      <button type="button" onClick={() => updateSheetData({ attacks: [...(sheetData.attacks ?? []), { name: '', attackBonus: '', damageType: '' }] })} style={{ fontSize: 12 }}>+ Атака</button>
+                    </td></tr>
+                    {refOptions.attacks.length > 0 && (
+                      <tr><td colSpan={3} style={{ paddingTop: 4 }}>
+                        <span style={{ fontSize: 12, color: '#666', marginRight: 8 }}>или из справочника:</span>
+                        <select
+                          value={attackSelectValue}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setAttackSelectValue(v);
+                            if (v) {
+                              const entry = refOptions.attacks.find((x) => x.name === v);
+                              if (entry) addAttackFromRef(entry);
+                            }
+                          }}
+                          style={{ ...sheetStyle, width: 220, display: 'inline-block' }}
+                        >
+                          <option value="">— атака или заклинание</option>
+                          {refOptions.attacks.map((e) => (
+                            <option key={e.id} value={e.name}>{e.name}</option>
+                          ))}
+                        </select>
+                      </td></tr>
+                    )}
+                  </>
                 )}
               </tbody>
             </table>
@@ -521,7 +627,31 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
                 </div>
               </div>
             ))}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
             {canEdit && <button type="button" onClick={() => updateSheetData({ weapons: [...(sheetData.weapons ?? []), normalizeWeapon({ name: '', damage: '' })] })}>+ Оружие</button>}
+            {canEdit && refOptions.weapons.length > 0 && (
+              <>
+                <span style={{ fontSize: 12, color: '#666' }}>или из справочника:</span>
+                <select
+                  value={weaponSelectValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setWeaponSelectValue(v);
+                    if (v) {
+                      const entry = refOptions.weapons.find((x) => x.name === v);
+                      if (entry) addWeaponFromRef(entry);
+                    }
+                  }}
+                  style={{ ...sheetStyle, width: 220 }}
+                >
+                  <option value="">— выбрать оружие</option>
+                  {refOptions.weapons.map((e) => (
+                    <option key={e.id} value={e.name}>{e.name}</option>
+                  ))}
+                </select>
+              </>
+            )}
+          </div>
           </div>
           {!hideInventory && (
             <div><h3 style={{ margin: '8px 0 4px', fontSize: 12 }}>Инвентарь (предметы)</h3>
@@ -534,7 +664,31 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
                   <textarea value={item.description ?? ''} onChange={(e) => { const next = [...(character.inventory ?? [])]; next[index] = { ...next[index], description: e.target.value }; updateStat('inventory', next); }} disabled={!canEdit} placeholder="Описание" rows={2} style={{ ...sheetStyle, width: '100%', resize: 'vertical', marginTop: 4 }} />
                 </div>
               ))}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
               {canEdit && <button type="button" onClick={() => updateStat('inventory', [...(character.inventory ?? []), { name: '', description: '' }])}>+ Предмет</button>}
+              {canEdit && refOptions.items.length > 0 && (
+                <>
+                  <span style={{ fontSize: 12, color: '#666' }}>или из справочника:</span>
+                  <select
+                    value={itemSelectValue}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setItemSelectValue(v);
+                      if (v) {
+                        const entry = refOptions.items.find((x) => x.name === v);
+                        if (entry) addItemFromRef(entry);
+                      }
+                    }}
+                    style={{ ...sheetStyle, width: 220 }}
+                  >
+                    <option value="">— выбрать предмет</option>
+                    {refOptions.items.map((e) => (
+                      <option key={e.id} value={e.name}>{e.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
             </div>
           )}
         </div>

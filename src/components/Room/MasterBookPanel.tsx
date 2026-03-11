@@ -70,6 +70,8 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
   const [currentId, setCurrentId] = useState<string | null>(startId);
   const [npcOverlay, setNpcOverlay] = useState<ScenarioNpc | null>(null);
   const [notesCollapsed, setNotesCollapsed] = useState(false);
+  const [notesBookBlockCollapsed, setNotesBookBlockCollapsed] = useState(false);
+  const [masterBookBlockCollapsed, setMasterBookBlockCollapsed] = useState(false);
   const [notesBookData, setNotesBookData] = useState<MasterBookData | null>(null);
   const [selectedNotesSectionId, setSelectedNotesSectionId] = useState<string | null>(null);
   const [notesSaving, setNotesSaving] = useState(false);
@@ -239,16 +241,24 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                 e.target.value = '';
               }}
             />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Книга заметок</div>
-              {notesBookData && (
+            <button
+              type="button"
+              onClick={() => setNotesBookBlockCollapsed((c) => !c)}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 8, flexWrap: 'wrap', gap: 4, padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Книга заметок</span>
+              <span style={{ fontSize: 10, color: '#999' }}>{notesBookBlockCollapsed ? '▶' : '▼'}</span>
+            </button>
+            {!notesBookBlockCollapsed && notesBookData && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
+                <div />
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button type="button" onClick={() => downloadMasterBookAsJson(notesBookData)} style={{ padding: '2px 6px', fontSize: 10, border: '1px solid #0d6efd', background: '#fff', color: '#0d6efd', borderRadius: 4, cursor: 'pointer' }}>Экспорт</button>
                   <button type="button" onClick={() => (document.getElementById('masterbook-import-json') as HTMLInputElement)?.click()} style={{ padding: '2px 6px', fontSize: 10, border: '1px solid #28a745', background: '#fff', color: '#28a745', borderRadius: 4, cursor: 'pointer' }}>Импорт</button>
                 </div>
-              )}
-            </div>
-            {notesBookData && notesBookData.sections.length > 0 && (
+              </div>
+            )}
+            {!notesBookBlockCollapsed && notesBookData && notesBookData.sections.length > 0 && (
               <input
                 type="text"
                 placeholder="Поиск..."
@@ -257,11 +267,11 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                 style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #dee2e6', borderRadius: 6, boxSizing: 'border-box', marginBottom: 8 }}
               />
             )}
-            {!notesBookData ? (
+            {!notesBookBlockCollapsed && !notesBookData ? (
               <div style={{ fontSize: 12, color: '#999' }}>Загрузка…</div>
-            ) : notesBookData.sections.length === 0 ? (
+            ) : !notesBookBlockCollapsed && notesBookData && notesBookData.sections.length === 0 ? (
               <div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>Разделов пока нет</div>
-            ) : (
+            ) : !notesBookBlockCollapsed && notesBookData && notesBookData.sections.length > 0 ? (
               (() => {
                 function renderNotesTree(sections: MasterBookSection[], depth: number) {
                   const filtered = sections.filter((s) => sectionOrDescendantMatches(s, notesSearchQuery));
@@ -341,8 +351,8 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
                 }
                 return renderNotesTree(notesBookData.sections, 0);
               })()
-            )}
-            {notesBookData && (
+            ) : null}
+            {!notesBookBlockCollapsed && notesBookData && (
               <button
                 type="button"
                 onClick={() => addNotesSection(null)}
@@ -363,10 +373,17 @@ export const MasterBookPanel: React.FC<MasterBookPanelProps> = ({
             {hasScenario && (
               <>
                 <div style={{ marginTop: 12, marginBottom: 12, borderTop: '1px solid #dee2e6' }} />
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>Локации и ситуации</div>
+                <button
+                  type="button"
+                  onClick={() => setMasterBookBlockCollapsed((c) => !c)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 8, padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Книга мастера</span>
+                  <span style={{ fontSize: 10, color: '#999' }}>{masterBookBlockCollapsed ? '▶' : '▼'}</span>
+                </button>
               </>
             )}
-            {hasScenario && (
+            {hasScenario && !masterBookBlockCollapsed && (
               <>
             {locations.length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Нет</div>}
             {locations.map((loc) => {
