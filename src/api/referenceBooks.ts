@@ -63,18 +63,34 @@ async function refBooksFetch(url: string, init?: RequestInit): Promise<Response>
   }
 }
 
+async function parseJsonResponse<T>(res: Response, url: string): Promise<T> {
+  const text = await res.text();
+  const trimmed = text.trim();
+  if (trimmed.startsWith('<')) {
+    throw new Error(`Сервер вернул HTML вместо JSON (${url}). Проверьте VITE_WEBSITE_API_URL — возможно, указан адрес приложения, а не API.`);
+  }
+  try {
+    return (trimmed ? JSON.parse(text) : {}) as T;
+  } catch {
+    throw new Error(`Неверный ответ сервера (${url}). Ожидался JSON.`);
+  }
+}
+
 export async function getReferenceBooks(): Promise<ReferenceBook[]> {
-  const res = await refBooksFetch(buildRefBooksUrl(''));
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Ошибка загрузки справочников');
-  const { books } = await res.json();
-  return books;
+  const url = buildRefBooksUrl('');
+  const res = await refBooksFetch(url);
+  const data = await parseJsonResponse<{ books?: ReferenceBook[]; error?: string }>(res, url);
+  if (!res.ok) throw new Error(data.error || 'Ошибка загрузки справочников');
+  return data.books ?? [];
 }
 
 export async function getReferenceBook(id: string): Promise<ReferenceBook | null> {
-  const res = await refBooksFetch(buildRefBooksUrl(`/${id}`));
+  const url = buildRefBooksUrl(`/${id}`);
+  const res = await refBooksFetch(url);
+  const data = await parseJsonResponse<ReferenceBook | { error?: string }>(res, url);
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Ошибка загрузки справочника');
-  return res.json();
+  if (!res.ok) throw new Error((data as { error?: string }).error || 'Ошибка загрузки справочника');
+  return data as ReferenceBook;
 }
 
 /** Загрузить записи справочника по slug (для селектов в форме персонажа) */
