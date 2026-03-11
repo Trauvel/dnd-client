@@ -261,8 +261,6 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
       style={!canEdit ? { background: '#eee', cursor: 'default' } : undefined}
     />
   );
-  const sheetStyle = { width: '100%', boxSizing: 'border-box' as const };
-  const labelStyle = {};
   const refSelect = (value: string, onChange: (v: string) => void, options: ReferenceEntry[], disabled: boolean) => (
     <select className="cs-select" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} style={!canEdit ? { background: '#eee', cursor: 'default' } : undefined}>
       <option value="">—</option>

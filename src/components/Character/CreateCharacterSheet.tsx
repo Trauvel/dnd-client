@@ -178,9 +178,6 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
   const level = xpToLevel(draft.experience);
   const profBonus = getProficiencyBonus(level);
 
-  const sheetStyle = { width: '100%', boxSizing: 'border-box' as const };
-  const labelStyle = {};
-
   const input = (type: 'text' | 'number', value: string | number, onChange: (v: string | number) => void, opts?: { min?: number; placeholder?: string }) => (
     <input
       type={type}
