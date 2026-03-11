@@ -17,6 +17,7 @@ import {
   CONDITION_OPTIONS,
 } from '../../types/characterSheet';
 import { parseHeight, parseWeight, heightToApi, weightToApi, HEIGHT_CM, WEIGHT_KG } from '../../utils/characterValidators';
+import { optimizeImage, AVATAR_OPTIMIZATION_OPTIONS } from '../../services/imageOptimization';
 import './CharacterSheet.css';
 
 const FILENAME_UNSAFE = new RegExp('[<>:"\\\\|?*]', 'g');
@@ -386,7 +387,7 @@ export const CharacterSheetView: React.FC<CharacterSheetViewProps> = ({
             <div className="cs-portrait-btns">
               <label className="cs-btn cs-btn-primary" style={{ margin: 0 }}>
                 Загрузить
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = () => updateStat('imageUrl', reader.result as string); reader.readAsDataURL(file); } }} />
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const file = e.target.files?.[0]; if (file) { try { const dataUrl = await optimizeImage(file, AVATAR_OPTIMIZATION_OPTIONS); updateStat('imageUrl', dataUrl); } catch { /* ignore */ } } }} />
               </label>
               <button type="button" className="cs-btn cs-btn-ghost" onClick={() => updateStat('imageUrl', '')}>Удалить</button>
             </div>

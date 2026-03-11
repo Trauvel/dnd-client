@@ -14,6 +14,7 @@ import {
   type WeaponDamageType,
   CONDITION_OPTIONS,
 } from '../../types/characterSheet';
+import { optimizeImage, AVATAR_OPTIMIZATION_OPTIONS } from '../../services/imageOptimization';
 import './CharacterSheet.css';
 
 function normalizeWeapon(
@@ -258,7 +259,7 @@ export const CreateCharacterSheet: React.FC<CreateCharacterSheetProps> = ({ onCa
             <div className="cs-portrait-btns">
               <label className="cs-btn cs-btn-primary" style={{ margin: 0 }}>
                 Загрузить
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = () => setDraft((p) => ({ ...p, imageUrl: reader.result as string })); reader.readAsDataURL(file); } }} />
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const file = e.target.files?.[0]; if (file) { try { const dataUrl = await optimizeImage(file, AVATAR_OPTIMIZATION_OPTIONS); setDraft((p) => ({ ...p, imageUrl: dataUrl })); } catch { /* ignore */ } } }} />
               </label>
               <button type="button" className="cs-btn cs-btn-ghost" onClick={() => setDraft((p) => ({ ...p, imageUrl: '' }))}>Удалить</button>
             </div>

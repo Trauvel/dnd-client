@@ -34,6 +34,9 @@ const Header: React.FC = () => {
               <Link to="/reference-books" style={{ color: "#fff", textDecoration: "none" }}>
                 Справочники
               </Link>
+              <Link to="/generators" style={{ color: "#fff", textDecoration: "none" }}>
+                Генераторы
+              </Link>
             </>
           ) : (
             <>

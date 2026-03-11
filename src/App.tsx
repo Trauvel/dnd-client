@@ -11,6 +11,7 @@ import RegisterPage from "./pages/RegisterPage";
 import RoomHistoryPage from "./pages/RoomHistoryPage";
 import MasterBookPage from "./pages/MasterBookPage";
 import ReferenceBooksPage from "./pages/ReferenceBooksPage";
+import GeneratorsPage from "./pages/GeneratorsPage";
 import { SocketProvider } from "./store/socketContext";
 import { AuthProvider } from "./store/authContext";
 import { NotificationProvider } from "./components/Notifications/NotificationSystem";
@@ -55,6 +56,14 @@ const App: React.FC = () => {
                 element={
                   <ProtectedRoute>
                     <ReferenceBooksPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/generators"
+                element={
+                  <ProtectedRoute>
+                    <GeneratorsPage />
                   </ProtectedRoute>
                 }
               />

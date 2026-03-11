@@ -14,6 +14,7 @@ import { getScenarioNpcsForView, type ScenarioNpc } from '../../api/scenarioNpcs
 import { MasterBookPanel } from './MasterBookPanel';
 import { NotesBookViewPanel } from './NotesBookViewPanel';
 import { DraggableWindow } from './DraggableWindow';
+import { MasterToolsModal } from './MasterToolsModal';
 import { VoiceInputPanel } from './VoiceInputPanel';
 import { useSpeechLog } from '../../hooks/useSpeechLog';
 
@@ -73,6 +74,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
   const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const [bookOpen, setBookOpen] = useState(false);
   const [playerNotesBookOpen, setPlayerNotesBookOpen] = useState(false);
+  const [toolsModalOpen, setToolsModalOpen] = useState(false);
   const [imagePopup, setImagePopup] = useState<{ url: string; name: string } | null>(null);
   const [hpUpdating, setHpUpdating] = useState(false);
   const [selectedWeaponIndex, setSelectedWeaponIndex] = useState(0);
@@ -1784,6 +1786,21 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setToolsModalOpen(true)}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#fd7e14',
+                      color: '#fff',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Инструменты
+                  </button>
+                  <button
+                    type="button"
                     onClick={async () => {
                       await loadScenarioNpcsForRoom();
                       setNpcModalOpen(true);
@@ -2985,6 +3002,10 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({ roomCode, onLeave }) => {
 
       {playerNotesBookOpen && (
         <NotesBookViewPanel onClose={() => setPlayerNotesBookOpen(false)} />
+      )}
+
+      {toolsModalOpen && isMaster && (
+        <MasterToolsModal onClose={() => setToolsModalOpen(false)} />
       )}
 
       {logWindowOpen && (
