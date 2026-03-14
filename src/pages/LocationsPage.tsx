@@ -6,8 +6,12 @@ import {
   updateScenarioApi,
   deleteScenarioFile,
   renameScenarioFile,
+  saveScenarioScript,
   buildScenarioExportPayload,
   downloadScenarioAsJson,
+  parseScenarioImportPayload,
+  validateScenarioImportPayload,
+  mapScriptDataNpcIds,
   type Scenario,
 } from '../api/scenarios';
 import {
@@ -37,6 +41,12 @@ const ScenariosPage: React.FC = () => {
     isNew: boolean;
   }>({ scenarioId: null, npc: null, isNew: true });
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importJson, setImportJson] = useState('');
+  const [importValidation, setImportValidation] = useState<ReturnType<typeof validateScenarioImportPayload> | null>(null);
+  const [importTarget, setImportTarget] = useState<'new' | 'replace'>(`new`);
+  const [importReplaceId, setImportReplaceId] = useState<string | null>(null);
+  const [importSaving, setImportSaving] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     scenario: false,
     attachments: false,
@@ -51,6 +61,82 @@ const ScenariosPage: React.FC = () => {
     if (el) {
       setCollapsedSections((prev) => ({ ...prev, [key]: false }));
       setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    }
+  };
+
+  const runImportValidation = () => {
+    if (!importJson.trim()) {
+      setImportValidation(null);
+      return;
+    }
+    const parsed = parseScenarioImportPayload(importJson.trim());
+    if ('error' in parsed) {
+      setImportValidation({ valid: false, scriptData: { locations: [], situations: [], branches: [], startLocationId: null }, errors: [parsed.error] });
+      return;
+    }
+    setImportValidation(validateScenarioImportPayload(parsed));
+  };
+
+  const handleImportSubmit = async () => {
+    if (!importValidation?.valid) return;
+    setImportSaving(true);
+    setError(null);
+    try {
+      const getScenarioId = async (): Promise<string> => {
+        if (importTarget === 'new') {
+          const title = importValidation.title?.trim() || 'Импортированный сценарий';
+          const scenario = await createScenario({
+            title,
+            description: importValidation.description ?? undefined,
+          });
+          const list = await getScenarios();
+          setScenarios(list);
+          setSelectedScenarioId(scenario.id);
+          return scenario.id;
+        }
+        if (importReplaceId) {
+          if (importValidation.title?.trim() || importValidation.description !== undefined) {
+            await updateScenarioApi(importReplaceId, {
+              title: importValidation.title?.trim() || undefined,
+              description: importValidation.description ?? undefined,
+            });
+            const list = await getScenarios();
+            setScenarios(list);
+          }
+          setSelectedScenarioId(importReplaceId);
+          return importReplaceId;
+        }
+        throw new Error('Не выбран сценарий для импорта');
+      };
+
+      const scenarioId = await getScenarioId();
+
+      const oldIdToNewId: Record<string, string> = {};
+      if (importValidation.npcs?.length) {
+        for (const npc of importValidation.npcs) {
+          const { id: _exportId, ...payload } = npc;
+          const created = await createScenarioNpc(scenarioId, {
+            ...payload,
+            imageFileId: null,
+          } as UpsertScenarioNpcPayload);
+          oldIdToNewId[npc.id] = created.id;
+        }
+      }
+
+      const scriptDataToSave = importValidation.npcs?.length
+        ? mapScriptDataNpcIds(importValidation.scriptData, oldIdToNewId)
+        : importValidation.scriptData;
+      await saveScenarioScript(scenarioId, scriptDataToSave);
+
+      const list = await getScenarios();
+      setScenarios(list);
+      setImportOpen(false);
+      setImportJson('');
+      setImportValidation(null);
+    } catch (err: any) {
+      setError(err.message || 'Ошибка импорта');
+    } finally {
+      setImportSaving(false);
     }
   };
 
@@ -208,9 +294,32 @@ const ScenariosPage: React.FC = () => {
       {isLoading ? (
         <div>Загрузка сценариев...</div>
       ) : scenarios.length === 0 ? (
-        <div>Сценариев пока нет. Создай первый выше.</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span>Сценариев пока нет. Создай первый выше или</span>
+          <button
+            type="button"
+            onClick={() => { setImportOpen(true); setImportJson(''); setImportValidation(null); setImportReplaceId(null); }}
+            style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #0d6efd', background: '#0d6efd', color: '#fff', fontSize: '13px', cursor: 'pointer' }}
+          >
+            Импорт JSON
+          </button>
+        </div>
       ) : (
         <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setImportOpen(true);
+                setImportJson('');
+                setImportValidation(null);
+                setImportReplaceId(scenarios[0]?.id ?? null);
+              }}
+              style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #0d6efd', background: '#0d6efd', color: '#fff', fontSize: '13px', cursor: 'pointer' }}
+            >
+              Импорт JSON
+            </button>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: 'black' }}>
             {scenarios.map((s) => (
               <div
@@ -244,8 +353,7 @@ const ScenariosPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const npcs = (npcByScenario[s.id] ?? []).map((n) => ({ name: n.name, type: n.type ?? null, npcKinds: n.npcKinds ?? [], description: n.description ?? null }));
-                      downloadScenarioAsJson(buildScenarioExportPayload(s, npcs));
+                      downloadScenarioAsJson(buildScenarioExportPayload(s, npcByScenario[s.id] ?? []));
                     }}
                     style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #6c757d', background: '#fff', color: '#6c757d', fontSize: '12px', cursor: 'pointer' }}
                   >
@@ -897,6 +1005,97 @@ const ScenariosPage: React.FC = () => {
           })()}
         </>
       )}
+      {importOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9998,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setImportOpen(false); }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              color: '#000',
+              borderRadius: 10,
+              padding: 20,
+              maxWidth: 560,
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 12 }}>Импорт сценария из JSON</h3>
+            <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>JSON (файл или вставка)</label>
+            <input
+              type="file"
+              accept=".json,application/json"
+              style={{ marginBottom: 8, fontSize: 12 }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  const r = new FileReader();
+                  r.onload = () => { setImportJson(String(r.result ?? '')); setImportValidation(null); };
+                  r.readAsText(f);
+                }
+                e.target.value = '';
+              }}
+            />
+            <textarea
+              value={importJson}
+              onChange={(e) => { setImportJson(e.target.value); setImportValidation(null); }}
+              placeholder='{"title": "...", "scriptData": { "locations": [...], "situations": [...], "branches": [...] }}'
+              rows={10}
+              style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 12, fontFamily: 'monospace', resize: 'vertical', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+              <button type="button" onClick={runImportValidation} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #0d6efd', background: '#0d6efd', color: '#fff', cursor: 'pointer' }}>Проверить</button>
+              {importValidation && (
+                <span style={{ fontSize: 13, alignSelf: 'center', color: importValidation.valid ? '#0a0' : '#c00' }}>
+                  {importValidation.valid
+                    ? `Локаций: ${importValidation.scriptData.locations?.length ?? 0}, ситуаций: ${importValidation.scriptData.situations?.length ?? 0}, переходов: ${importValidation.scriptData.branches?.length ?? 0}`
+                    : importValidation.errors.join('; ')}
+                </span>
+              )}
+            </div>
+            {importValidation?.valid && (
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #eee' }}>
+                <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13 }}>Куда импортировать</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
+                  <input type="radio" checked={importTarget === 'new'} onChange={() => setImportTarget('new')} />
+                  Создать новый сценарий{importValidation.title ? `: «${importValidation.title}»` : ''}
+                </label>
+                {scenarios.length > 0 && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="radio" checked={importTarget === 'replace'} onChange={() => setImportTarget('replace')} />
+                    Заменить сценарий:
+                    <select
+                      value={importReplaceId ?? ''}
+                      onChange={(e) => setImportReplaceId(e.target.value || null)}
+                      style={{ padding: '4px 8px', borderRadius: 4 }}
+                    >
+                      {scenarios.map((s) => (
+                        <option key={s.id} value={s.id}>{s.title}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button type="button" onClick={() => setImportOpen(false)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #6c757d', background: '#fff', cursor: 'pointer' }}>Отмена</button>
+                  <button type="button" onClick={handleImportSubmit} disabled={importSaving || (importTarget === 'replace' && !importReplaceId)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: importSaving ? '#6c757d' : '#28a745', color: '#fff', cursor: importSaving ? 'not-allowed' : 'pointer' }}>{importSaving ? 'Сохранение...' : 'Импорт'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {npcEditing.scenarioId && npcEditing.npc && (
         <div
           style={{
